@@ -1,488 +1,441 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import React, { useState, useEffect } from 'react';
 import { reportesAPI } from '../../utils/api';
-import { ButtonLoading } from '../../components/common/Loading';
+import { 
+  Camera, 
+  MapPin, 
+  Upload, 
+  X, 
+  CheckCircle,
+  AlertCircle,
+  FileImage,
+  Loader2,
+  Navigation,
+  Send
+} from 'lucide-react';
 
 const CreateReport = ({ onReportCreated }) => {
-  const { user } = useAuth();
   const [formData, setFormData] = useState({
     descripcion: '',
-    tipo_estimado: '',
     direccion: '',
+    tipo_estimado: '',
     latitud: null,
-    longitud: null,
+    longitud: null
   });
-  const [imagen, setImagen] = useState(null);
-  const [imagenPreview, setImagenPreview] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [locationStatus, setLocationStatus] = useState('idle'); // idle, loading, success, error
-  const fileInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
+  
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Tipos de residuos predefinidos
   const tiposResiduos = [
     'Basura doméstica',
-    'Escombros',
-    'Neumáticos',
-    'Electrónicos',
-    'Orgánicos',
-    'Plásticos',
-    'Vidrio',
+    'Escombros de construcción',
+    'Residuos orgánicos',
+    'Plásticos y envases',
+    'Residuos electrónicos',
+    'Vidrios y cristales',
     'Metales',
+    'Residuos peligrosos',
     'Otros'
   ];
 
-  // Obtener geolocalización al cargar el componente
   useEffect(() => {
-    obtenerUbicacion();
+    getCurrentLocation();
   }, []);
 
-  const obtenerUbicacion = () => {
+  const getCurrentLocation = () => {
     if (!navigator.geolocation) {
-      setError('Geolocalización no disponible en este navegador');
+      setLocationError('Tu navegador no soporta geolocalización');
       return;
     }
 
-    setLocationStatus('loading');
-    
+    setIsLoadingLocation(true);
+    setLocationError('');
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
-        const { latitude, longitude } = position.coords;
         setFormData(prev => ({
           ...prev,
-          latitud: latitude,
-          longitud: longitude
+          latitud: position.coords.latitude,
+          longitud: position.coords.longitude
         }));
-        setLocationStatus('success');
-        console.log('📍 Ubicación obtenida:', { latitude, longitude });
+        setIsLoadingLocation(false);
       },
       (error) => {
-        console.error('❌ Error obteniendo ubicación:', error);
-        setError('No se pudo obtener la ubicación. Asegúrate de permitir el acceso.');
-        setLocationStatus('error');
+        console.error('Error obteniendo ubicación:', error);
+        let errorMessage = 'No se pudo obtener tu ubicación';
+        
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Acceso a ubicación denegado. Habilita GPS en configuración.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Ubicación no disponible. Intenta nuevamente.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Tiempo de espera agotado. Intenta nuevamente.';
+            break;
+        }
+        
+        setLocationError(errorMessage);
+        setIsLoadingLocation(false);
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 300000 // 5 minutos
+        maximumAge: 60000
       }
     );
   };
 
-  const handleChange = (e) => {
+  const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleImageChange = (e) => {
+  const handleFileSelect = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      procesarImagen(file);
-    }
-  };
+    if (!file) return;
 
-  const procesarImagen = (file) => {
-    // Validar tipo de archivo
-    if (!file.type.startsWith('image/')) {
-      setError('Por favor selecciona un archivo de imagen válido');
+    // Validaciones
+    const maxSize = 10 * 1024 * 1024; // 10MB
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+    if (file.size > maxSize) {
+      alert('La imagen es demasiado grande. Máximo 10MB permitido.');
       return;
     }
 
-    // Validar tamaño (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      setError('La imagen es demasiado grande. Máximo 10MB.');
+    if (!allowedTypes.includes(file.type)) {
+      alert('Tipo de archivo no válido. Solo se permiten imágenes (JPEG, PNG, WebP).');
       return;
     }
 
-    setImagen(file);
-    setError('');
-
+    setSelectedFile(file);
+    
     // Crear preview
     const reader = new FileReader();
-    reader.onload = (e) => {
-      setImagenPreview(e.target.result);
-    };
+    reader.onload = (e) => setPreviewUrl(e.target.result);
     reader.readAsDataURL(file);
-
-    console.log('📸 Imagen seleccionada:', {
-      name: file.name,
-      size: (file.size / 1024 / 1024).toFixed(2) + 'MB',
-      type: file.type
-    });
   };
 
-  const abrirCamara = () => {
-    if (cameraInputRef.current) {
-      cameraInputRef.current.click();
+  const removeImage = () => {
+    setSelectedFile(null);
+    setPreviewUrl(null);
+    // Limpiar input file
+    const fileInput = document.getElementById('imageInput');
+    if (fileInput) fileInput.value = '';
+  };
+
+  const validateForm = () => {
+    if (!formData.descripcion.trim() || formData.descripcion.length < 10) {
+      setSubmitError('La descripción debe tener al menos 10 caracteres');
+      return false;
     }
-  };
 
-  const abrirGaleria = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
+    if (!formData.latitud || !formData.longitud) {
+      setSubmitError('Se requiere la ubicación GPS para crear el reporte');
+      return false;
     }
-  };
 
-  const eliminarImagen = () => {
-    setImagen(null);
-    setImagenPreview(null);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (cameraInputRef.current) cameraInputRef.current.value = '';
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.descripcion.trim()) {
-      setError('La descripción es requerida');
-      return;
-    }
+    setSubmitError('');
+    setSubmitSuccess(false);
 
-    if (!formData.latitud || !formData.longitud) {
-      setError('Se requiere la ubicación para crear el reporte');
-      return;
-    }
+    if (!validateForm()) return;
 
-    setIsLoading(true);
-    setError('');
-    setSuccess('');
+    setIsSubmitting(true);
 
     try {
-      // Crear FormData para enviar imagen
-      const reportData = new FormData();
-      reportData.append('descripcion', formData.descripcion.trim());
-      reportData.append('latitud', formData.latitud);
-      reportData.append('longitud', formData.longitud);
+      const formDataToSend = new FormData();
+      formDataToSend.append('descripcion', formData.descripcion.trim());
+      formDataToSend.append('latitud', formData.latitud);
+      formDataToSend.append('longitud', formData.longitud);
       
       if (formData.direccion.trim()) {
-        reportData.append('direccion', formData.direccion.trim());
+        formDataToSend.append('direccion', formData.direccion.trim());
       }
       
       if (formData.tipo_estimado) {
-        reportData.append('tipo_estimado', formData.tipo_estimado);
+        formDataToSend.append('tipo_estimado', formData.tipo_estimado);
       }
       
-      if (imagen) {
-        reportData.append('imagen', imagen);
+      if (selectedFile) {
+        formDataToSend.append('imagen', selectedFile);
       }
 
-      console.log('📤 Enviando reporte...');
+      const response = await reportesAPI.create(formDataToSend);
       
-      const response = await reportesAPI.create(reportData);
-      
-      console.log('✅ Reporte creado exitosamente:', response);
-      
-      setSuccess('¡Reporte creado exitosamente! 🎉');
+      setSubmitSuccess(true);
       
       // Limpiar formulario
       setFormData({
         descripcion: '',
-        tipo_estimado: '',
         direccion: '',
-        latitud: formData.latitud, // Mantener ubicación
-        longitud: formData.longitud,
+        tipo_estimado: '',
+        latitud: null,
+        longitud: null
       });
-      setImagen(null);
-      setImagenPreview(null);
+      setSelectedFile(null);
+      setPreviewUrl(null);
       
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      if (cameraInputRef.current) cameraInputRef.current.value = '';
+      // Obtener nueva ubicación
+      setTimeout(getCurrentLocation, 1000);
       
-      // Notificar al componente padre
       if (onReportCreated) {
-        onReportCreated(response.reporte);
+        setTimeout(() => onReportCreated(response.reporte), 2000);
       }
-      
+
     } catch (error) {
-      console.error('❌ Error creando reporte:', error);
-      setError(error.response?.data?.error || 'Error creando el reporte');
+      console.error('Error creando reporte:', error);
+      setSubmitError(
+        error.response?.data?.error || 
+        'Error creando el reporte. Intenta nuevamente.'
+      );
     } finally {
-      setIsLoading(false);
+      setIsSubmitting(false);
     }
   };
 
-  const formatearUbicacion = (lat, lng) => {
-    return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-  };
+  // Mensaje de éxito
+  if (submitSuccess) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center space-y-6 pb-20">
+        <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
+          <CheckCircle className="w-12 h-12 text-green-600" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Reporte Enviado!</h2>
+          <p className="text-gray-600 mb-4">
+            Tu reporte ha sido creado exitosamente y está siendo procesado.
+          </p>
+          <p className="text-sm text-gray-500">
+            Las autoridades serán notificadas y podrás ver el estado en tus reportes.
+          </p>
+        </div>
+        <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+          <p className="text-emerald-800 font-medium">¡Gracias por contribuir!</p>
+          <p className="text-emerald-600 text-sm mt-1">
+            Cada reporte nos ayuda a mantener nuestra ciudad más limpia
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="card">
-        <div className="card-body">
-          {/* Header */}
-          <div className="flex items-center space-x-3 mb-6">
-            <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center">
-              <span className="text-2xl">📋</span>
-            </div>
+    <div className="max-w-2xl mx-auto space-y-6 pb-20">
+      {/* Header */}
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-gray-900 mb-2">Crear Reporte</h1>
+        <p className="text-gray-600">
+          Reporta acumulación de residuos para ayudar a mantener la ciudad limpia
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Descripción */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Descripción del problema *
+          </label>
+          <textarea
+            name="descripcion"
+            value={formData.descripcion}
+            onChange={handleInputChange}
+            placeholder="Describe detalladamente el problema de residuos que observas..."
+            rows={4}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 resize-none"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            Mínimo 10 caracteres ({formData.descripcion.length}/10)
+          </p>
+        </div>
+
+        {/* Tipo de residuo */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Tipo de residuo
+          </label>
+          <select
+            name="tipo_estimado"
+            value={formData.tipo_estimado}
+            onChange={handleInputChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+          >
+            <option value="">Selecciona el tipo de residuo</option>
+            {tiposResiduos.map((tipo) => (
+              <option key={tipo} value={tipo}>{tipo}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Imagen */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Fotografía del problema
+          </label>
+          
+          {!previewUrl ? (
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Crear Reporte</h2>
-              <p className="text-gray-600">Reporta basura o residuos en tu área</p>
-            </div>
-          </div>
-
-          {/* Success message */}
-          {success && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
-              <div className="flex items-center space-x-2">
-                <span className="text-green-500">✅</span>
-                <span className="text-green-700 font-medium">{success}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
-              <div className="flex items-center space-x-2">
-                <span className="text-red-500">❌</span>
-                <span className="text-red-700 font-medium">{error}</span>
-              </div>
-            </div>
-          )}
-
-          {/* Formulario */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Ubicación */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-medium text-gray-900 flex items-center space-x-2">
-                  <span>📍</span>
-                  <span>Ubicación</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={obtenerUbicacion}
-                  disabled={locationStatus === 'loading'}
-                  className="text-primary-600 hover:text-primary-500 text-sm font-medium"
-                >
-                  {locationStatus === 'loading' ? 'Obteniendo...' : 'Actualizar'}
-                </button>
-              </div>
-              
-              {locationStatus === 'loading' && (
-                <div className="flex items-center space-x-2 text-gray-600">
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin"></div>
-                  <span className="text-sm">Obteniendo ubicación...</span>
-                </div>
-              )}
-              
-              {locationStatus === 'success' && formData.latitud && formData.longitud && (
-                <div className="text-sm text-gray-600">
-                  <p>📍 {formatearUbicacion(formData.latitud, formData.longitud)}</p>
-                  <p className="text-xs text-gray-500 mt-1">Ubicación obtenida automáticamente</p>
-                </div>
-              )}
-              
-              {locationStatus === 'error' && (
-                <p className="text-sm text-red-600">
-                  ❌ Error obteniendo ubicación. Intenta nuevamente.
-                </p>
-              )}
-            </div>
-
-            {/* Descripción */}
-            <div>
-              <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700 mb-2">
-                Descripción del problema *
-              </label>
-              <textarea
-                id="descripcion"
-                name="descripcion"
-                rows="4"
-                required
-                value={formData.descripcion}
-                onChange={handleChange}
-                className="input-field"
-                placeholder="Describe el problema de basura o residuos que encontraste..."
-                disabled={isLoading}
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Mínimo 10 caracteres. Sé específico para ayudar a las autoridades.
-              </p>
-            </div>
-
-            {/* Tipo de residuo */}
-            <div>
-              <label htmlFor="tipo_estimado" className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo de residuo (opcional)
-              </label>
-              <select
-                id="tipo_estimado"
-                name="tipo_estimado"
-                value={formData.tipo_estimado}
-                onChange={handleChange}
-                className="input-field"
-                disabled={isLoading}
-              >
-                <option value="">Selecciona un tipo</option>
-                {tiposResiduos.map((tipo) => (
-                  <option key={tipo} value={tipo}>
-                    {tipo}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Dirección */}
-            <div>
-              <label htmlFor="direccion" className="block text-sm font-medium text-gray-700 mb-2">
-                Dirección o referencia (opcional)
-              </label>
               <input
-                id="direccion"
-                name="direccion"
-                type="text"
-                value={formData.direccion}
-                onChange={handleChange}
-                className="input-field"
-                placeholder="Ej: Cerca del parque central, Calle 123"
-                disabled={isLoading}
-              />
-            </div>
-
-            {/* Imagen */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Fotografía (opcional pero recomendada)
-              </label>
-              
-              {!imagenPreview ? (
-                <div className="space-y-4">
-                  {/* Botones de captura */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <button
-                      type="button"
-                      onClick={abrirCamara}
-                      className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-colors"
-                      disabled={isLoading}
-                    >
-                      <span className="text-3xl mb-2">📷</span>
-                      <span className="text-sm font-medium text-gray-700">Tomar Foto</span>
-                    </button>
-                    
-                    <button
-                      type="button"
-                      onClick={abrirGaleria}
-                      className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-gray-300 rounded-xl hover:border-primary-500 hover:bg-primary-50 transition-colors"
-                      disabled={isLoading}
-                    >
-                      <span className="text-3xl mb-2">🖼️</span>
-                      <span className="text-sm font-medium text-gray-700">Elegir de Galería</span>
-                    </button>
-                  </div>
-                  
-                  <p className="text-xs text-gray-500 text-center">
-                    La foto ayuda a las autoridades a entender mejor el problema
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {/* Preview de imagen */}
-                  <div className="relative">
-                    <img
-                      src={imagenPreview}
-                      alt="Preview del reporte"
-                      className="w-full h-64 object-cover rounded-xl border border-gray-200"
-                    />
-                    <button
-                      type="button"
-                      onClick={eliminarImagen}
-                      className="absolute top-2 right-2 w-8 h-8 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
-                      disabled={isLoading}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 text-green-600 text-sm">
-                    <span>✅</span>
-                    <span>Imagen lista para enviar</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Inputs ocultos */}
-              <input
-                ref={cameraInputRef}
+                id="imageInput"
                 type="file"
                 accept="image/*"
                 capture="environment"
-                onChange={handleImageChange}
+                onChange={handleFileSelect}
                 className="hidden"
               />
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleImageChange}
-                className="hidden"
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-emerald-500 transition-colors">
+                <Camera className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600 mb-2">Toma una foto del problema</p>
+                <p className="text-sm text-gray-500 mb-4">
+                  Máximo 10MB • Formatos: JPEG, PNG, WebP
+                </p>
+                <div className="space-y-2">
+                  <label
+                    htmlFor="imageInput"
+                    className="inline-flex items-center space-x-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                    <span>Abrir Cámara</span>
+                  </label>
+                  <p className="text-xs text-gray-500">
+                    También puedes seleccionar desde galería
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="relative">
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className="w-full h-64 object-cover rounded-lg"
               />
-            </div>
-
-            {/* Información del usuario */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-              <div className="flex items-center space-x-2 mb-2">
-                <span className="text-blue-500">👤</span>
-                <span className="font-medium text-blue-900">Información del reporte</span>
-              </div>
-              <div className="space-y-1 text-sm text-blue-700">
-                <p><strong>Reportado por:</strong> {user?.nombre}</p>
-                <p><strong>Email:</strong> {user?.email}</p>
-                <p><strong>Tipo de usuario:</strong> {user?.role === 'citizen' ? 'Ciudadano' : 'Autoridad'}</p>
-              </div>
-            </div>
-
-            {/* Botón de envío */}
-            <div className="flex space-x-4">
               <button
-                type="submit"
-                disabled={isLoading || !formData.descripcion.trim() || !formData.latitud}
-                className="flex-1 btn-primary flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                type="button"
+                onClick={removeImage}
+                className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
               >
-                {isLoading ? (
-                  <>
-                    <ButtonLoading />
-                    <span>Creando reporte...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>Crear Reporte</span>
-                    <span>🚀</span>
-                  </>
-                )}
+                <X className="w-4 h-4" />
               </button>
-              
-              {(formData.descripcion || imagen) && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData({
-                      descripcion: '',
-                      tipo_estimado: '',
-                      direccion: '',
-                      latitud: formData.latitud,
-                      longitud: formData.longitud,
-                    });
-                    eliminarImagen();
-                    setError('');
-                    setSuccess('');
-                  }}
-                  className="btn-secondary"
-                  disabled={isLoading}
-                >
-                  Limpiar
-                </button>
-              )}
+              <div className="mt-2 flex items-center space-x-2 text-sm text-gray-600">
+                <FileImage className="w-4 h-4" />
+                <span>{selectedFile?.name}</span>
+                <span>({(selectedFile?.size / 1024 / 1024).toFixed(1)} MB)</span>
+              </div>
             </div>
-          </form>
+          )}
         </div>
-      </div>
+
+        {/* Ubicación */}
+        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-sm font-medium text-gray-700">
+              Ubicación GPS *
+            </label>
+            <button
+              type="button"
+              onClick={getCurrentLocation}
+              disabled={isLoadingLocation}
+              className="flex items-center space-x-1 text-emerald-600 hover:text-emerald-700 text-sm"
+            >
+              {isLoadingLocation ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Navigation className="w-4 h-4" />
+              )}
+              <span>Actualizar</span>
+            </button>
+          </div>
+
+          {isLoadingLocation ? (
+            <div className="flex items-center space-x-2 text-gray-600 py-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>Obteniendo ubicación...</span>
+            </div>
+          ) : formData.latitud && formData.longitud ? (
+            <div className="flex items-center space-x-2 text-green-600 py-2">
+              <CheckCircle className="w-4 h-4" />
+              <span className="text-sm">
+                Ubicación detectada: {formData.latitud.toFixed(6)}, {formData.longitud.toFixed(6)}
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center space-x-2 text-red-600 py-2">
+              <AlertCircle className="w-4 h-4" />
+              <span className="text-sm">
+                {locationError || 'No se pudo obtener la ubicación'}
+              </span>
+            </div>
+          )}
+
+          {/* Dirección de referencia */}
+          <div className="mt-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Dirección de referencia (opcional)
+            </label>
+            <input
+              type="text"
+              name="direccion"
+              value={formData.direccion}
+              onChange={handleInputChange}
+              placeholder="Ej: Cerca del parque central, Av. 6 de Agosto..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+
+        {/* Error message */}
+        {submitError && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+            <div className="flex items-center space-x-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <p className="text-red-800">{submitError}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Submit button */}
+        <button
+          type="submit"
+          disabled={isSubmitting || isLoadingLocation || (!formData.latitud || !formData.longitud)}
+          className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-4 rounded-xl font-medium hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Enviando reporte...</span>
+            </>
+          ) : (
+            <>
+              <Send className="w-5 h-5" />
+              <span>Enviar Reporte</span>
+            </>
+          )}
+        </button>
+
+        {/* Información adicional */}
+        <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+          <h4 className="font-medium text-blue-900 mb-2">Información importante</h4>
+          <ul className="text-sm text-blue-800 space-y-1">
+            <li>• La ubicación GPS es requerida para procesar tu reporte</li>
+            <li>• Las fotografías ayudan a evaluar mejor el problema</li>
+            <li>• Recibirás 10 puntos por cada reporte válido</li>
+            <li>• Las autoridades serán notificadas automáticamente</li>
+          </ul>
+        </div>
+      </form>
     </div>
   );
 };

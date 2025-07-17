@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ButtonLoading } from '../../components/common/Loading';
+import { Eye, EyeOff, Mail, Lock, LogIn, Loader2 } from 'lucide-react';
 
 const Login = ({ onToggleForm }) => {
   const { login, error, isLoading } = useAuth();
@@ -29,124 +29,100 @@ const Login = ({ onToggleForm }) => {
     
     if (result.success) {
       console.log('✅ Login exitoso, usuario autenticado');
-      // El Context API se encarga de actualizar el estado global
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        {/* Header */}
-        <div className="text-center">
-          <div className="w-20 h-20 mx-auto bg-gradient-primary rounded-2xl flex items-center justify-center shadow-2xl mb-4">
-            <span className="text-3xl font-bold text-white">🌱</span>
+    <div className="space-y-6">
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+          <p className="text-red-600 text-sm">{error}</p>
+        </div>
+      )}
+
+      {/* Formulario */}
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Email */}
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+            Email
+          </label>
+          <div className="relative">
+            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              id="email"
+              name="email"
+              type="email"
+              required
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+              placeholder="tu@email.com"
+              disabled={isLoading}
+            />
           </div>
-          <h2 className="text-3xl font-bold text-gray-900">Iniciar Sesión</h2>
-          <p className="mt-2 text-gray-600">Accede a tu cuenta de EcoReports</p>
         </div>
 
-        {/* Formulario */}
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <div className="flex items-center space-x-2">
-                <span className="text-red-500">❌</span>
-                <span className="text-red-700 font-medium">Error de autenticación</span>
-              </div>
-              <p className="text-red-600 text-sm mt-1">{error}</p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                required
-                value={formData.email}
-                onChange={handleChange}
-                className="input-field"
-                placeholder="tu@email.com"
-                disabled={isLoading}
-              />
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                Contraseña
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="input-field pr-12"
-                  placeholder="Tu contraseña"
-                  disabled={isLoading}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
-                  disabled={isLoading}
-                >
-                  {showPassword ? '🙈' : '👁️'}
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* Submit button */}
-          <div>
-            <button
-              type="submit"
-              disabled={isLoading || !formData.email || !formData.password}
-              className="btn-primary w-full flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isLoading ? (
-                <>
-                  <ButtonLoading />
-                  <span>Iniciando sesión...</span>
-                </>
-              ) : (
-                <>
-                  <span>Iniciar Sesión</span>
-                  <span>🚀</span>
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Toggle to register */}
-          <div className="text-center">
+        {/* Password */}
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+            Contraseña
+          </label>
+          <div className="relative">
+            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              id="password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              required
+              value={formData.password}
+              onChange={handleChange}
+              className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+              placeholder="Tu contraseña"
+              disabled={isLoading}
+            />
             <button
               type="button"
-              onClick={onToggleForm}
-              className="text-primary-600 hover:text-primary-500 font-medium"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
               disabled={isLoading}
             >
-              ¿No tienes cuenta? Regístrate aquí
+              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
             </button>
           </div>
-        </form>
-
-        {/* Test credentials */}
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-6">
-          <h3 className="font-medium text-blue-900 mb-2">🧪 Para Testing:</h3>
-          <p className="text-blue-700 text-sm">
-            Puedes crear una cuenta nueva o usar las credenciales existentes del backend
-          </p>
         </div>
+
+        {/* Submit button */}
+        <button
+          type="submit"
+          disabled={isLoading || !formData.email || !formData.password}
+          className="w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white py-3 rounded-lg font-medium hover:from-emerald-600 hover:to-emerald-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Iniciando sesión...</span>
+            </>
+          ) : (
+            <>
+              <LogIn className="w-5 h-5" />
+              <span>Iniciar Sesión</span>
+            </>
+          )}
+        </button>
+      </form>
+
+      {/* Toggle to register */}
+      <div className="text-center">
+        <button
+          type="button"
+          onClick={onToggleForm}
+          className="text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
+          disabled={isLoading}
+        >
+          ¿No tienes cuenta? Regístrate aquí
+        </button>
       </div>
     </div>
   );

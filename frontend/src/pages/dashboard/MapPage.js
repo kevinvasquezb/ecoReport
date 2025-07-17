@@ -1,383 +1,308 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { reportesAPI } from '../../utils/api';
-import MapView from '../../components/maps/MapView';
-import Loading from '../../components/common/Loading';
+import { 
+  Filter, 
+  MapPin, 
+  RefreshCw, 
+  Layers,
+  Eye,
+  EyeOff
+} from 'lucide-react';
+import 'leaflet/dist/leaflet.css';
+
+// Fix para los iconos de Leaflet
+import L from 'leaflet';
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+});
+
+// Iconos personalizados por estado
+const createCustomIcon = (color) => {
+  return L.divIcon({
+    html: `
+      <div style="
+        background-color: ${color};
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        border: 3px solid white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      ">
+        <div style="
+          width: 8px;
+          height: 8px;
+          background-color: white;
+          border-radius: 50%;
+        "></div>
+      </div>
+    `,
+    className: 'custom-marker',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+    popupAnchor: [0, -10]
+  });
+};
+
+const icons = {
+  'Reportado': createCustomIcon('#3B82F6'), // Azul
+  'En proceso': createCustomIcon('#F59E0B'), // Amarillo
+  'Limpio': createCustomIcon('#10B981'), // Verde
+  'Rechazado': createCustomIcon('#EF4444') // Rojo
+};
 
 const MapPage = () => {
-  const { user } = useAuth();
   const [reportes, setReportes] = useState([]);
+  const [filteredReportes, setFilteredReportes] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [selectedReporte, setSelectedReporte] = useState(null);
-  const [filters, setFilters] = useState({
-    estado: '',
-    tipo: '',
-  });
+  const [filter, setFilter] = useState('todos');
+  const [showControls, setShowControls] = useState(true);
+  const [userLocation, setUserLocation] = useState(null);
 
-  // Cargar reportes al montar el componente
+  // Coordenadas de Santa Cruz, Bolivia por defecto
+  const defaultCenter = [-17.7839, -63.1847];
+  const defaultZoom = 12;
+
   useEffect(() => {
-    cargarReportes();
+    loadReportes();
+    getUserLocation();
   }, []);
 
-  const cargarReportes = async () => {
+  useEffect(() => {
+    filterReportes();
+  }, [reportes, filter]);
+
+  const loadReportes = async () => {
     try {
       setIsLoading(true);
-      setError('');
-      
-      console.log('🗺️ Cargando reportes para el mapa...');
-      
       const response = await reportesAPI.getAll();
-      
       setReportes(response.reportes || []);
-      console.log(`✅ ${response.reportes?.length || 0} reportes cargados para el mapa`);
-      
     } catch (error) {
-      console.error('❌ Error cargando reportes:', error);
-      setError('Error cargando los reportes. Intenta nuevamente.');
+      console.error('Error cargando reportes:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleReporteClick = (reporte) => {
-    setSelectedReporte(reporte);
-    console.log('🎯 Reporte seleccionado:', reporte);
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation([position.coords.latitude, position.coords.longitude]);
+        },
+        (error) => {
+          console.error('Error obteniendo ubicación:', error);
+        }
+      );
+    }
   };
 
-  const handleFilterChange = (filterType, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterType]: value
-    }));
+  const filterReportes = () => {
+    if (filter === 'todos') {
+      setFilteredReportes(reportes);
+    } else {
+      setFilteredReportes(reportes.filter(reporte => reporte.estado === filter));
+    }
   };
 
-  // Filtrar reportes según los filtros aplicados
-  const reportesFiltrados = reportes.filter(reporte => {
-    if (filters.estado && reporte.estado !== filters.estado) {
-      return false;
-    }
-    if (filters.tipo && reporte.tipo_estimado !== filters.tipo) {
-      return false;
-    }
-    return true;
-  });
-
-  // Obtener tipos únicos para el filtro
-  const tiposUnicos = [...new Set(reportes.map(r => r.tipo_estimado).filter(Boolean))];
-
-  const formatearFecha = (fecha) => {
-    return new Date(fecha).toLocaleDateString('es-ES', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
     });
   };
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loading size="large" text="Cargando mapa..." />
-      </div>
-    );
-  }
+  const getReporteCounts = () => {
+    return {
+      todos: reportes.length,
+      'Reportado': reportes.filter(r => r.estado === 'Reportado').length,
+      'En proceso': reportes.filter(r => r.estado === 'En proceso').length,
+      'Limpio': reportes.filter(r => r.estado === 'Limpio').length,
+      'Rechazado': reportes.filter(r => r.estado === 'Rechazado').length
+    };
+  };
+
+  const counts = getReporteCounts();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-20">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-12 h-12 bg-authority-100 rounded-xl flex items-center justify-center">
-            <span className="text-2xl">🗺️</span>
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Mapa de Reportes</h1>
-            <p className="text-gray-600">
-              {reportesFiltrados.length} de {reportes.length} reportes mostrados
-            </p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Mapa de Reportes</h1>
+          <p className="text-gray-600">{filteredReportes.length} reportes visibles</p>
         </div>
-        
-        <button
-          onClick={cargarReportes}
-          disabled={isLoading}
-          className="btn-secondary flex items-center space-x-2"
-        >
-          <span>🔄</span>
-          <span>Actualizar</span>
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={loadReportes}
+            disabled={isLoading}
+            className="p-2 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={() => setShowControls(!showControls)}
+            className="p-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors"
+          >
+            {showControls ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
-      {/* Error message */}
-      {error && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <div className="flex items-center space-x-2">
-            <span className="text-red-500">❌</span>
-            <span className="text-red-700 font-medium">{error}</span>
+      {/* Controles de filtros */}
+      {showControls && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-4">
+          {/* Filtros */}
+          <div className="flex space-x-2 overflow-x-auto pb-1">
+            <button
+              onClick={() => setFilter('todos')}
+              className={`flex items-center space-x-1 px-3 py-2 rounded-lg whitespace-nowrap text-sm transition-colors ${
+                filter === 'todos'
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span>Todos ({counts.todos})</span>
+            </button>
+
+            <button
+              onClick={() => setFilter('Reportado')}
+              className={`flex items-center space-x-1 px-3 py-2 rounded-lg whitespace-nowrap text-sm transition-colors ${
+                filter === 'Reportado'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+              }`}
+            >
+              <span>Pendientes ({counts['Reportado']})</span>
+            </button>
+
+            <button
+              onClick={() => setFilter('En proceso')}
+              className={`flex items-center space-x-1 px-3 py-2 rounded-lg whitespace-nowrap text-sm transition-colors ${
+                filter === 'En proceso'
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+              }`}
+            >
+              <span>En Proceso ({counts['En proceso']})</span>
+            </button>
+
+            <button
+              onClick={() => setFilter('Limpio')}
+              className={`flex items-center space-x-1 px-3 py-2 rounded-lg whitespace-nowrap text-sm transition-colors ${
+                filter === 'Limpio'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-green-100 text-green-700 hover:bg-green-200'
+              }`}
+            >
+              <span>Resueltos ({counts['Limpio']})</span>
+            </button>
+          </div>
+
+          {/* Leyenda */}
+          <div className="grid grid-cols-2 gap-2 text-xs">
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span className="text-gray-600">Reportado</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+              <span className="text-gray-600">En proceso</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-gray-600">Resuelto</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+              <span className="text-gray-600">Rechazado</span>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-        <h3 className="font-medium text-gray-900 mb-3">Filtros</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Filtro por estado */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Estado
-            </label>
-            <select
-              value={filters.estado}
-              onChange={(e) => handleFilterChange('estado', e.target.value)}
-              className="input-field"
-            >
-              <option value="">Todos los estados</option>
-              <option value="Reportado">Reportado</option>
-              <option value="En proceso">En proceso</option>
-              <option value="Limpio">Limpio</option>
-              <option value="Rechazado">Rechazado</option>
-            </select>
-          </div>
+      {/* Contenedor del mapa con altura fija */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="h-96 relative z-10">
+          <MapContainer
+            center={userLocation || defaultCenter}
+            zoom={defaultZoom}
+            className="h-full w-full"
+            zoomControl={true}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
 
-          {/* Filtro por tipo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Tipo de residuo
-            </label>
-            <select
-              value={filters.tipo}
-              onChange={(e) => handleFilterChange('tipo', e.target.value)}
-              className="input-field"
-            >
-              <option value="">Todos los tipos</option>
-              {tiposUnicos.map(tipo => (
-                <option key={tipo} value={tipo}>{tipo}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Limpiar filtros */}
-          <div className="flex items-end">
-            <button
-              onClick={() => setFilters({ estado: '', tipo: '' })}
-              className="btn-secondary w-full"
-            >
-              Limpiar filtros
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Layout principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Mapa */}
-        <div className="lg:col-span-2">
-          <div className="card">
-            <div className="card-body p-0">
-              <MapView
-                reportes={reportesFiltrados}
-                height="600px"
-                onReporteClick={handleReporteClick}
-                showUserLocation={true}
-                className="rounded-2xl overflow-hidden"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Panel lateral */}
-        <div className="space-y-6">
-          {/* Estadísticas */}
-          <div className="card">
-            <div className="card-body">
-              <h3 className="font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-                <span>📊</span>
-                <span>Estadísticas</span>
-              </h3>
-              
-              <div className="space-y-3">
-                {[
-                  { label: 'Reportado', value: reportes.filter(r => r.estado === 'Reportado').length, color: 'bg-yellow-100 text-yellow-800' },
-                  { label: 'En proceso', value: reportes.filter(r => r.estado === 'En proceso').length, color: 'bg-blue-100 text-blue-800' },
-                  { label: 'Limpio', value: reportes.filter(r => r.estado === 'Limpio').length, color: 'bg-green-100 text-green-800' },
-                  { label: 'Rechazado', value: reportes.filter(r => r.estado === 'Rechazado').length, color: 'bg-red-100 text-red-800' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="flex items-center justify-between">
-                    <span className="text-sm text-gray-600">{label}</span>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${color}`}>
-                      {value}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Reporte seleccionado */}
-          {selectedReporte ? (
-            <div className="card">
-              <div className="card-body">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-semibold text-gray-900 flex items-center space-x-2">
-                    <span>📋</span>
-                    <span>Reporte #{selectedReporte.id}</span>
-                  </h3>
-                  <button
-                    onClick={() => setSelectedReporte(null)}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    ✕
-                  </button>
-                </div>
-                
-                <div className="space-y-3">
-                  {/* Estado */}
-                  <div>
-                    <span className={`inline-flex px-3 py-1 rounded-full text-xs font-medium ${
-                      selectedReporte.estado === 'Reportado' ? 'bg-yellow-100 text-yellow-800' :
-                      selectedReporte.estado === 'En proceso' ? 'bg-blue-100 text-blue-800' :
-                      selectedReporte.estado === 'Limpio' ? 'bg-green-100 text-green-800' :
-                      'bg-red-100 text-red-800'
-                    }`}>
-                      {selectedReporte.estado}
-                    </span>
-                  </div>
-
-                  {/* Descripción */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-1">Descripción</h4>
-                    <p className="text-sm text-gray-600">{selectedReporte.descripcion}</p>
-                  </div>
-
-                  {/* Tipo */}
-                  {selectedReporte.tipo_estimado && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-1">Tipo</h4>
-                      <p className="text-sm text-gray-600">{selectedReporte.tipo_estimado}</p>
+            {/* Marcadores de reportes */}
+            {filteredReportes.map((reporte) => (
+              <Marker
+                key={reporte.id}
+                position={[parseFloat(reporte.latitud), parseFloat(reporte.longitud)]}
+                icon={icons[reporte.estado] || icons['Reportado']}
+              >
+                <Popup maxWidth={280} className="custom-popup">
+                  <div className="p-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        reporte.estado === 'Limpio' ? 'bg-green-100 text-green-800' :
+                        reporte.estado === 'En proceso' ? 'bg-yellow-100 text-yellow-800' :
+                        reporte.estado === 'Rechazado' ? 'bg-red-100 text-red-800' :
+                        'bg-blue-100 text-blue-800'
+                      }`}>
+                        {reporte.estado}
+                      </span>
+                      <span className="text-xs text-gray-500">#{reporte.id}</span>
                     </div>
-                  )}
 
-                  {/* Dirección */}
-                  {selectedReporte.direccion && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-1">Dirección</h4>
-                      <p className="text-sm text-gray-600">{selectedReporte.direccion}</p>
-                    </div>
-                  )}
+                    <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2">
+                      {reporte.descripcion}
+                    </h3>
 
-                  {/* Coordenadas */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-1">Ubicación</h4>
-                    <p className="text-sm text-gray-600 font-mono">
-                      {selectedReporte.latitud?.toFixed(6)}, {selectedReporte.longitud?.toFixed(6)}
-                    </p>
-                  </div>
-
-                  {/* Fecha */}
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-900 mb-1">Reportado</h4>
-                    <p className="text-sm text-gray-600">{formatearFecha(selectedReporte.created_at)}</p>
-                  </div>
-
-                  {/* Usuario */}
-                  {selectedReporte.usuario_nombre && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-1">Reportado por</h4>
-                      <p className="text-sm text-gray-600">{selectedReporte.usuario_nombre}</p>
-                    </div>
-                  )}
-
-                  {/* Imagen */}
-                  {selectedReporte.imagen_url && (
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-900 mb-1">Imagen</h4>
+                    {reporte.imagen_thumbnail_url && (
                       <img
-                        src={selectedReporte.imagen_thumbnail_url || selectedReporte.imagen_url}
-                        alt="Imagen del reporte"
-                        className="w-full h-32 object-cover rounded-lg border border-gray-200"
-                        loading="lazy"
+                        src={reporte.imagen_thumbnail_url}
+                        alt="Reporte"
+                        className="w-full h-32 object-cover rounded-lg mb-2"
                       />
-                    </div>
-                  )}
+                    )}
 
-                  {/* Acciones para autoridades */}
-                  {user?.role === 'authority' && selectedReporte.estado !== 'Limpio' && (
-                    <div className="pt-3 border-t border-gray-200">
-                      <h4 className="text-sm font-medium text-gray-900 mb-2">Acciones</h4>
-                      <div className="space-y-2">
-                        <button className="w-full btn-secondary text-sm py-2">
-                          Cambiar a "En proceso"
-                        </button>
-                        <button className="w-full bg-green-500 hover:bg-green-600 text-white text-sm py-2 px-4 rounded-lg">
-                          Marcar como "Limpio"
-                        </button>
+                    {reporte.direccion && (
+                      <div className="flex items-center space-x-1 text-gray-600 text-sm mb-1">
+                        <MapPin className="w-3 h-3" />
+                        <span className="line-clamp-1">{reporte.direccion}</span>
                       </div>
+                    )}
+
+                    <div className="text-xs text-gray-500">
+                      <p>Reportado por: {reporte.usuario_nombre}</p>
+                      <p>Fecha: {formatDate(reporte.created_at)}</p>
                     </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="card-body text-center py-12">
-                <div className="w-16 h-16 mx-auto bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
-                  <span className="text-2xl">🎯</span>
-                </div>
-                <h3 className="font-medium text-gray-900 mb-2">Selecciona un reporte</h3>
-                <p className="text-gray-500 text-sm">
-                  Haz clic en cualquier marcador del mapa para ver sus detalles
-                </p>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+
+          {/* Loading overlay */}
+          {isLoading && (
+            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl p-6 flex items-center space-x-3">
+                <RefreshCw className="w-6 h-6 animate-spin text-emerald-600" />
+                <span className="text-gray-700">Cargando reportes...</span>
               </div>
             </div>
           )}
-
-          {/* Información del usuario */}
-          <div className="card">
-            <div className="card-body">
-              <h3 className="font-semibold text-gray-900 mb-3 flex items-center space-x-2">
-                <span>👤</span>
-                <span>Tu información</span>
-              </h3>
-              
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Rol:</span>
-                  <span className="font-medium capitalize">{user?.role}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Nombre:</span>
-                  <span className="font-medium">{user?.nombre}</span>
-                </div>
-                {user?.role === 'citizen' && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Puntos:</span>
-                    <span className="font-medium">{user?.puntos || 0}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
-
-      {/* Empty state si no hay reportes */}
-      {reportes.length === 0 && !isLoading && (
-        <div className="text-center py-12">
-          <div className="w-24 h-24 mx-auto bg-gray-100 rounded-3xl flex items-center justify-center mb-6">
-            <span className="text-4xl">🗺️</span>
-          </div>
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No hay reportes</h3>
-          <p className="text-gray-600 mb-6">
-            Aún no se han creado reportes. ¡Sé el primero en reportar un problema!
-          </p>
-          <button className="btn-primary">
-            Crear primer reporte
-          </button>
-        </div>
-      )}
     </div>
   );
 };
