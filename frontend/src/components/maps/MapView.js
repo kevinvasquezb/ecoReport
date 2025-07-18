@@ -1,98 +1,149 @@
 import React, { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { MapPin, ExternalLink, Calendar, User } from 'lucide-react';
 
-// Fix para los iconos de Leaflet en React
+// Fix para los iconos de Leaflet
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-const MapView = ({ 
-  reportes = [], 
-  center = [-16.5000, -68.1193], // La Paz, Bolivia por defecto
-  zoom = 13,
-  height = '400px',
-  onReporteClick = null,
-  showUserLocation = true,
-  className = ''
-}) => {
+const MapView = ({ reportes = [], className = "w-full h-96" }) => {
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const markersRef = useRef([]);
   const [userLocation, setUserLocation] = useState(null);
-  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
-  // Colores por estado de reporte
+  // Colores para diferentes estados
   const getMarkerColor = (estado) => {
-    const colors = {
-      'Reportado': '#f59e0b', // Amarillo
-      'En proceso': '#3b82f6', // Azul
-      'Limpio': '#10b981',     // Verde
-      'Rechazado': '#ef4444',  // Rojo
-    };
-    return colors[estado] || '#6b7280'; // Gris por defecto
+    switch (estado) {
+      case 'Limpio':
+        return '#10b981'; // Verde
+      case 'En proceso':
+        return '#f59e0b'; // Amarillo
+      case 'Rechazado':
+        return '#ef4444'; // Rojo
+      default:
+        return '#3b82f6'; // Azul (Reportado)
+    }
   };
 
-  // Crear icono personalizado para cada estado
+  // Crear icono personalizado
   const createCustomIcon = (estado) => {
     const color = getMarkerColor(estado);
-    
     return L.divIcon({
-      className: 'custom-div-icon',
+      className: 'custom-marker',
       html: `
         <div style="
           background-color: ${color};
-          width: 25px;
-          height: 25px;
-          border-radius: 50% 50% 50% 0;
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
           border: 3px solid white;
-          transform: rotate(-45deg);
-          box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+          box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
         ">
           <div style="
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%) rotate(45deg);
-            color: white;
-            font-size: 12px;
-            font-weight: bold;
-          ">
-            📍
-          </div>
+            width: 8px;
+            height: 8px;
+            background-color: white;
+            border-radius: 50%;
+          "></div>
         </div>
       `,
-      iconSize: [25, 35],
-      iconAnchor: [12, 35],
-      popupAnchor: [1, -34],
+      iconSize: [24, 24],
+      iconAnchor: [12, 12],
+      popupAnchor: [0, -12]
     });
   };
+
+  // Obtener ubicación del usuario
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.log('Error obteniendo ubicación:', error);
+        },
+        { timeout: 10000, enableHighAccuracy: true }
+      );
+    }
+  }, []);
 
   // Inicializar mapa
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
-    console.log('🗺️ Inicializando mapa Leaflet...');
+    // Coordenadas por defecto (La Paz, Bolivia)
+    const defaultCenter = [-16.5000, -68.1500];
+    const center = userLocation ? [userLocation.lat, userLocation.lng] : defaultCenter;
 
-    const map = L.map(mapRef.current).setView(center, zoom);
+    const map = L.map(mapRef.current, {
+      // CRÍTICO: Z-index más bajo que el header
+      zoomControl: false,
+      attributionControl: false
+    }).setView(center, 13);
 
-    // Agregar tiles de OpenStreetMap
+    // Agregar controles de zoom en posición personalizada
+    L.control.zoom({
+      position: 'bottomright'
+    }).addTo(map);
+
+    // Configurar tiles de OpenStreetMap
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      attribution: '© OpenStreetMap contributors',
       maxZoom: 19,
     }).addTo(map);
 
-    mapInstanceRef.current = map;
+    // Agregar marcador de ubicación del usuario
+    if (userLocation) {
+      const userIcon = L.divIcon({
+        className: 'user-location-marker',
+        html: `
+          <div style="
+            background-color: #3b82f6;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+            animation: pulse 2s infinite;
+          "></div>
+          <style>
+            @keyframes pulse {
+              0% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+              }
+              70% {
+                box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+              }
+              100% {
+                box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+              }
+            }
+          </style>
+        `,
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+      });
 
-    // Obtener ubicación del usuario si está habilitado
-    if (showUserLocation) {
-      obtenerUbicacionUsuario();
+      L.marker([userLocation.lat, userLocation.lng], { icon: userIcon })
+        .addTo(map)
+        .bindPopup('<b>Tu ubicación</b>')
+        .openPopup();
     }
 
-    console.log('✅ Mapa inicializado correctamente');
+    mapInstanceRef.current = map;
 
     return () => {
       if (mapInstanceRef.current) {
@@ -100,272 +151,186 @@ const MapView = ({
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [userLocation]);
 
-  // Obtener ubicación del usuario
-  const obtenerUbicacionUsuario = () => {
-    if (!navigator.geolocation) {
-      console.log('⚠️ Geolocalización no disponible');
-      return;
-    }
-
-    setIsLoadingLocation(true);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        setUserLocation([latitude, longitude]);
-        setIsLoadingLocation(false);
-        
-        console.log('📍 Ubicación del usuario obtenida:', { latitude, longitude });
-
-        // Agregar marcador de usuario
-        if (mapInstanceRef.current) {
-          const userIcon = L.divIcon({
-            className: 'user-location-icon',
-            html: `
-              <div style="
-                background-color: #3b82f6;
-                width: 15px;
-                height: 15px;
-                border-radius: 50%;
-                border: 3px solid white;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                animation: pulse 2s infinite;
-              "></div>
-            `,
-            iconSize: [15, 15],
-            iconAnchor: [7, 7],
-          });
-
-          L.marker([latitude, longitude], { icon: userIcon })
-            .addTo(mapInstanceRef.current)
-            .bindPopup('Tu ubicación 📍')
-            .openPopup();
-        }
-      },
-      (error) => {
-        console.error('❌ Error obteniendo ubicación:', error);
-        setIsLoadingLocation(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000
-      }
-    );
-  };
-
-  // Actualizar marcadores cuando cambian los reportes
+  // Actualizar marcadores cuando cambien los reportes
   useEffect(() => {
     if (!mapInstanceRef.current) return;
 
-    // Limpiar marcadores anteriores
+    // Limpiar marcadores existentes
     markersRef.current.forEach(marker => {
       mapInstanceRef.current.removeLayer(marker);
     });
     markersRef.current = [];
 
     // Agregar nuevos marcadores
-    reportes.forEach(reporte => {
-      if (!reporte.latitud || !reporte.longitud) return;
+    if (reportes && reportes.length > 0) {
+      const bounds = [];
 
-      const icon = createCustomIcon(reporte.estado);
-      
-      const marker = L.marker([reporte.latitud, reporte.longitud], { icon })
-        .addTo(mapInstanceRef.current);
+      reportes.forEach(reporte => {
+        const lat = parseFloat(reporte.latitud);
+        const lng = parseFloat(reporte.longitud);
 
-      // Crear popup con información del reporte
-      const popupContent = `
-        <div style="max-width: 250px;">
-          <div style="margin-bottom: 8px;">
-            <h3 style="margin: 0; font-size: 14px; font-weight: bold; color: #1f2937;">
-              Reporte #${reporte.id}
-            </h3>
-            <span style="
-              background-color: ${getMarkerColor(reporte.estado)}20;
-              color: ${getMarkerColor(reporte.estado)};
-              padding: 2px 8px;
-              border-radius: 12px;
-              font-size: 11px;
-              font-weight: 500;
-            ">
-              ${reporte.estado}
-            </span>
-          </div>
-          
-          <p style="margin: 8px 0; font-size: 13px; color: #4b5563;">
-            ${reporte.descripcion.length > 100 
-              ? reporte.descripcion.substring(0, 100) + '...' 
-              : reporte.descripcion}
-          </p>
-          
-          ${reporte.tipo_estimado ? `
-            <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
-              <strong>Tipo:</strong> ${reporte.tipo_estimado}
-            </p>
-          ` : ''}
-          
-          ${reporte.direccion ? `
-            <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
-              <strong>Dirección:</strong> ${reporte.direccion}
-            </p>
-          ` : ''}
-          
-          <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
-            <strong>Reportado:</strong> ${new Date(reporte.created_at).toLocaleDateString('es-ES')}
-          </p>
-          
-          ${reporte.usuario_nombre ? `
-            <p style="margin: 4px 0; font-size: 12px; color: #6b7280;">
-              <strong>Por:</strong> ${reporte.usuario_nombre}
-            </p>
-          ` : ''}
-          
-          ${reporte.imagen_thumbnail_url ? `
-            <div style="margin-top: 8px;">
-              <img 
-                src="${reporte.imagen_thumbnail_url}" 
-                alt="Imagen del reporte"
-                style="width: 100%; max-height: 120px; object-fit: cover; border-radius: 6px;"
-                loading="lazy"
-              />
+        if (isNaN(lat) || isNaN(lng)) return;
+
+        bounds.push([lat, lng]);
+
+        const marker = L.marker([lat, lng], {
+          icon: createCustomIcon(reporte.estado)
+        });
+
+        // Crear popup personalizado
+        const popupContent = `
+          <div style="min-width: 280px; font-family: Inter, sans-serif;">
+            <div style="margin-bottom: 12px;">
+              ${reporte.imagen_thumbnail_url ? 
+                `<img src="${reporte.imagen_thumbnail_url}" 
+                     style="width: 100%; height: 120px; object-fit: cover; border-radius: 8px; margin-bottom: 8px;" 
+                     alt="Imagen del reporte" />` : 
+                `<div style="width: 100%; height: 120px; background-color: #f3f4f6; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+                   <span style="color: #9ca3af;">Sin imagen</span>
+                 </div>`
+              }
             </div>
-          ` : ''}
-          
-          ${onReporteClick ? `
-            <button 
-              onclick="window.handleReporteClick && window.handleReporteClick(${reporte.id})"
-              style="
-                margin-top: 8px;
-                width: 100%;
-                background-color: #10b981;
-                color: white;
-                border: none;
-                padding: 6px 12px;
+            
+            <div style="margin-bottom: 8px;">
+              <span style="
+                background-color: ${reporte.estado === 'Limpio' ? '#dcfce7' : 
+                                   reporte.estado === 'En proceso' ? '#fef3c7' : 
+                                   reporte.estado === 'Rechazado' ? '#fee2e2' : '#dbeafe'};
+                color: ${reporte.estado === 'Limpio' ? '#166534' : 
+                         reporte.estado === 'En proceso' ? '#92400e' : 
+                         reporte.estado === 'Rechazado' ? '#991b1b' : '#1e40af'};
+                padding: 4px 8px;
                 border-radius: 6px;
                 font-size: 12px;
-                cursor: pointer;
-              "
-            >
-              Ver detalles
-            </button>
-          ` : ''}
-        </div>
-      `;
+                font-weight: 600;
+              ">${reporte.estado}</span>
+            </div>
+            
+            <h3 style="margin: 0 0 8px 0; font-size: 16px; font-weight: 600; color: #111827;">
+              ${reporte.tipo_estimado || 'Reporte de residuos'}
+            </h3>
+            
+            <p style="margin: 0 0 8px 0; font-size: 14px; color: #4b5563; line-height: 1.4;">
+              ${reporte.descripcion.length > 100 ? reporte.descripcion.substring(0, 100) + '...' : reporte.descripcion}
+            </p>
+            
+            ${reporte.direccion ? 
+              `<div style="display: flex; align-items: center; margin-bottom: 8px; font-size: 12px; color: #6b7280;">
+                 <span style="margin-right: 4px;">📍</span>
+                 ${reporte.direccion.length > 50 ? reporte.direccion.substring(0, 50) + '...' : reporte.direccion}
+               </div>` : ''
+            }
+            
+            <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 8px;">
+              <div style="display: flex; align-items: center;">
+                <span style="margin-right: 4px;">👤</span>
+                ${reporte.usuario_nombre || 'Usuario'}
+              </div>
+              <div style="display: flex; align-items: center;">
+                <span style="margin-right: 4px;">📅</span>
+                ${new Date(reporte.created_at).toLocaleDateString('es-ES')}
+              </div>
+            </div>
+          </div>
+        `;
 
-      marker.bindPopup(popupContent);
-      markersRef.current.push(marker);
+        marker.bindPopup(popupContent, {
+          maxWidth: 300,
+          className: 'custom-popup'
+        });
 
-      // Manejar click en marcador
-      marker.on('click', () => {
-        if (onReporteClick) {
-          onReporteClick(reporte);
-        }
+        marker.addTo(mapInstanceRef.current);
+        markersRef.current.push(marker);
       });
-    });
 
-    console.log(`🗺️ ${reportes.length} marcadores agregados al mapa`);
-
-    // Ajustar vista para mostrar todos los marcadores
-    if (reportes.length > 0) {
-      const group = new L.featureGroup(markersRef.current);
-      mapInstanceRef.current.fitBounds(group.getBounds().pad(0.1));
-    }
-  }, [reportes, onReporteClick]);
-
-  // Función global para manejar clicks desde popup
-  useEffect(() => {
-    window.handleReporteClick = (reporteId) => {
-      const reporte = reportes.find(r => r.id === reporteId);
-      if (reporte && onReporteClick) {
-        onReporteClick(reporte);
+      // Ajustar vista del mapa para mostrar todos los marcadores
+      if (bounds.length > 0) {
+        if (bounds.length === 1) {
+          mapInstanceRef.current.setView(bounds[0], 15);
+        } else {
+          mapInstanceRef.current.fitBounds(bounds, { 
+            padding: [20, 20],
+            maxZoom: 16 
+          });
+        }
       }
-    };
-
-    return () => {
-      delete window.handleReporteClick;
-    };
-  }, [reportes, onReporteClick]);
+    }
+  }, [reportes]);
 
   return (
     <div className={`relative ${className}`}>
-      {/* Mapa */}
+      {/* CRÍTICO: z-index bajo para que no tape el header */}
       <div 
         ref={mapRef} 
-        style={{ height, width: '100%' }}
-        className="rounded-xl border border-gray-200 shadow-sm"
+        className="w-full h-full rounded-xl"
+        style={{ zIndex: 1 }}
       />
       
-      {/* Controles del mapa */}
-      <div className="absolute top-4 right-4 z-[1000] space-y-2">
-        {/* Botón de ubicación */}
-        {showUserLocation && (
-          <button
-            onClick={obtenerUbicacionUsuario}
-            disabled={isLoadingLocation}
-            className="w-10 h-10 bg-white rounded-lg shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors border border-gray-200"
-            title="Mi ubicación"
-          >
-            {isLoadingLocation ? (
-              <div className="w-4 h-4 border-2 border-gray-300 border-t-primary-500 rounded-full animate-spin"></div>
-            ) : (
-              <span className="text-lg">📍</span>
-            )}
-          </button>
-        )}
-      </div>
-
-      {/* Leyenda */}
-      <div className="absolute bottom-4 left-4 z-[1000] bg-white rounded-lg shadow-lg border border-gray-200 p-3">
-        <h4 className="font-medium text-gray-900 text-sm mb-2">Estados</h4>
-        <div className="space-y-1">
-          {[
-            { estado: 'Reportado', color: '#f59e0b' },
-            { estado: 'En proceso', color: '#3b82f6' },
-            { estado: 'Limpio', color: '#10b981' },
-            { estado: 'Rechazado', color: '#ef4444' },
-          ].map(({ estado, color }) => (
-            <div key={estado} className="flex items-center space-x-2">
-              <div 
-                className="w-3 h-3 rounded-full border border-white shadow-sm"
-                style={{ backgroundColor: color }}
-              ></div>
-              <span className="text-xs text-gray-600">{estado}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Contador de reportes */}
-      {reportes.length > 0 && (
-        <div className="absolute top-4 left-4 z-[1000] bg-white rounded-lg shadow-lg border border-gray-200 px-3 py-2">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium text-gray-900">
-              {reportes.length} reporte{reportes.length !== 1 ? 's' : ''}
-            </span>
-            <span className="text-lg">🗺️</span>
-          </div>
-        </div>
-      )}
-
-      {/* CSS adicional para animaciones */}
+      {/* Estilos CSS para popups personalizados */}
       <style jsx>{`
+        .custom-popup .leaflet-popup-content-wrapper {
+          border-radius: 12px;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+          border: 1px solid #e5e7eb;
+        }
+        
+        .custom-popup .leaflet-popup-content {
+          margin: 16px;
+          font-family: Inter, -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        
+        .custom-popup .leaflet-popup-tip {
+          background: white;
+          border: 1px solid #e5e7eb;
+        }
+        
+        .custom-marker {
+          background: transparent;
+          border: none;
+        }
+        
+        .user-location-marker {
+          background: transparent;
+          border: none;
+        }
+        
+        /* Asegurar que los controles del mapa no interfieran */
+        .leaflet-control-container {
+          position: relative;
+          z-index: 2;
+        }
+        
+        /* Popup z-index seguro */
+        .leaflet-popup {
+          z-index: 3 !important;
+        }
+        
+        /* Animación para ubicación del usuario */
         @keyframes pulse {
           0% {
-            transform: scale(1);
-            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
           }
-          50% {
-            transform: scale(1.3);
-            opacity: 0.7;
+          70% {
+            box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
           }
           100% {
-            transform: scale(1);
-            opacity: 1;
+            box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
           }
         }
       `}</style>
+      
+      {/* Indicador de carga cuando no hay reportes */}
+      {(!reportes || reportes.length === 0) && (
+        <div className="absolute inset-0 bg-white bg-opacity-90 flex items-center justify-center rounded-xl z-2">
+          <div className="text-center">
+            <MapPin className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+            <p className="text-gray-600 font-medium">No hay reportes para mostrar</p>
+            <p className="text-gray-500 text-sm">Los reportes aparecerán aquí cuando estén disponibles</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

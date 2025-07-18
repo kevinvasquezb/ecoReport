@@ -7,8 +7,6 @@ import CreateReport from './pages/dashboard/CreateReport';
 import MapPage from './pages/dashboard/MapPage';
 import ProfilePage from './pages/dashboard/ProfilePage';
 import ReportsPage from './pages/dashboard/ReportsPage';
-import AdminDashboard from './pages/dashboard/AdminDashboard';
-import AuthorityDashboard from './pages/dashboard/AuthorityDashboard';
 import { 
   MapPin, 
   Plus, 
@@ -20,15 +18,11 @@ import {
   TrendingUp,
   Menu,
   X,
-  Shield,
-  Building,
-  Settings,
-  Users,
-  BarChart3
+  Home
 } from 'lucide-react';
 
 // Componente de navegación mejorado
-const Navigation = () => {
+const Navigation = ({ currentView, onNavigate }) => {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -37,56 +31,67 @@ const Navigation = () => {
     setIsMenuOpen(false);
   };
 
-  const getRoleColor = (role) => {
-    switch (role) {
-      case 'admin':
-        return 'from-purple-500 to-purple-600';
-      case 'authority':
-        return 'from-blue-500 to-blue-600';
-      default:
-        return 'from-emerald-500 to-emerald-600';
-    }
-  };
-
-  const getRoleIcon = (role) => {
-    switch (role) {
-      case 'admin':
-        return <Shield className="w-4 h-4" />;
-      case 'authority':
-        return <Building className="w-4 h-4" />;
-      default:
-        return <User className="w-4 h-4" />;
-    }
-  };
-
-  const getRoleLabel = (role) => {
-    switch (role) {
-      case 'admin':
-        return 'Administrador';
-      case 'authority':
-        return 'Autoridad';
-      default:
-        return 'Ciudadano';
-    }
+  const handleNavigation = (view) => {
+    onNavigate(view);
+    setIsMenuOpen(false);
   };
 
   return (
-    <header className="bg-white shadow-lg border-b sticky top-0 z-40">
+    <header className="bg-white shadow-lg border-b sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo y título */}
           <div className="flex items-center space-x-3">
-            <div className={`w-10 h-10 bg-gradient-to-r ${getRoleColor(user?.role)} rounded-xl flex items-center justify-center shadow-md`}>
+            <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md">
               <span className="text-xl font-bold text-white">🌱</span>
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900">EcoReports</h1>
-              <p className="text-xs text-gray-500">
-                {user?.role === 'admin' ? 'Panel de Administración' : 
-                 user?.role === 'authority' ? 'Panel de Autoridades' : 
-                 'Ciudades más limpias'}
-              </p>
+              <p className="text-xs text-gray-500">Ciudades más limpias</p>
             </div>
+          </div>
+
+          {/* Navegación Desktop */}
+          <div className="hidden md:flex items-center space-x-6">
+            <button
+              onClick={() => handleNavigation('dashboard')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                currentView === 'dashboard' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Home className="w-4 h-4" />
+              <span className="text-sm font-medium">Inicio</span>
+            </button>
+            
+            <button
+              onClick={() => handleNavigation('create')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                currentView === 'create' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="text-sm font-medium">Reportar</span>
+            </button>
+            
+            <button
+              onClick={() => handleNavigation('map')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                currentView === 'map' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <Map className="w-4 h-4" />
+              <span className="text-sm font-medium">Mapa</span>
+            </button>
+            
+            <button
+              onClick={() => handleNavigation('reports')}
+              className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                currentView === 'reports' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <List className="w-4 h-4" />
+              <span className="text-sm font-medium">Mis Reportes</span>
+            </button>
           </div>
 
           {/* Información del usuario - Desktop */}
@@ -98,18 +103,22 @@ const Navigation = () => {
               </span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className={`w-8 h-8 bg-gradient-to-r ${getRoleColor(user?.role)} rounded-full flex items-center justify-center`}>
-                <span className="text-sm font-bold text-white">
-                  {user?.nombre?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">{user?.nombre}</p>
-                <div className="flex items-center space-x-1">
-                  {getRoleIcon(user?.role)}
-                  <p className="text-xs text-gray-500">{getRoleLabel(user?.role)}</p>
+              <button
+                onClick={() => handleNavigation('profile')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-lg transition-colors ${
+                  currentView === 'profile' ? 'bg-emerald-100 text-emerald-700' : 'hover:bg-gray-100'
+                }`}
+              >
+                <div className="w-8 h-8 bg-gradient-to-r from-emerald-500 to-blue-600 rounded-full flex items-center justify-center">
+                  <span className="text-sm font-bold text-white">
+                    {user?.nombre?.charAt(0).toUpperCase()}
+                  </span>
                 </div>
-              </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{user?.nombre}</p>
+                  <p className="text-xs text-gray-500 capitalize">{user?.role}</p>
+                </div>
+              </button>
             </div>
             
             {/* Botón de logout */}
@@ -133,34 +142,87 @@ const Navigation = () => {
           </div>
         </div>
 
-        {/* Menú móvil */}
+        {/* Menú móvil mejorado */}
         {isMenuOpen && (
           <div className="md:hidden border-t bg-white py-4">
             <div className="flex items-center space-x-3 px-4 py-3 border-b">
-              <div className={`w-10 h-10 bg-gradient-to-r ${getRoleColor(user?.role)} rounded-full flex items-center justify-center`}>
+              <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-blue-600 rounded-full flex items-center justify-center">
                 <span className="text-lg font-bold text-white">
                   {user?.nombre?.charAt(0).toUpperCase()}
                 </span>
               </div>
               <div>
                 <p className="font-medium text-gray-900">{user?.nombre}</p>
-                <div className="flex items-center space-x-1">
-                  {getRoleIcon(user?.role)}
-                  <p className="text-sm text-gray-500">{getRoleLabel(user?.role)}</p>
-                </div>
+                <p className="text-sm text-gray-500 capitalize">{user?.role}</p>
                 <div className="flex items-center space-x-1 mt-1">
                   <Award className="w-3 h-3 text-emerald-500" />
                   <span className="text-xs text-gray-600">{user?.puntos || 0} puntos</span>
                 </div>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center space-x-2 px-4 py-3 text-red-600 hover:bg-red-50 transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              <span>Cerrar Sesión</span>
-            </button>
+            
+            {/* Navegación móvil */}
+            <div className="space-y-1 px-4 py-2">
+              <button
+                onClick={() => handleNavigation('dashboard')}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  currentView === 'dashboard' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Home className="w-5 h-5" />
+                <span>Inicio</span>
+              </button>
+              
+              <button
+                onClick={() => handleNavigation('create')}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  currentView === 'create' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Plus className="w-5 h-5" />
+                <span>Crear Reporte</span>
+              </button>
+              
+              <button
+                onClick={() => handleNavigation('map')}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  currentView === 'map' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <Map className="w-5 h-5" />
+                <span>Ver Mapa</span>
+              </button>
+              
+              <button
+                onClick={() => handleNavigation('reports')}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  currentView === 'reports' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <List className="w-5 h-5" />
+                <span>Mis Reportes</span>
+              </button>
+              
+              <button
+                onClick={() => handleNavigation('profile')}
+                className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${
+                  currentView === 'profile' ? 'bg-emerald-100 text-emerald-700' : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <User className="w-5 h-5" />
+                <span>Mi Perfil</span>
+              </button>
+            </div>
+            
+            <div className="border-t pt-2 px-4">
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center space-x-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Cerrar Sesión</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -168,19 +230,11 @@ const Navigation = () => {
   );
 };
 
-// Componente de navegación inferior (solo para ciudadanos)
-const BottomNavigation = ({ currentView, onNavigate, userRole }) => {
-  // Solo mostrar navegación inferior para ciudadanos
-  if (userRole !== 'citizen') return null;
+// Componente de navegación inferior
+const BottomNavigation = ({ currentView, onNavigate }) => {
+  const { user } = useAuth();
   
   const navItems = [
-    { 
-      id: 'dashboard', 
-      icon: TrendingUp, 
-      label: 'Inicio', 
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-50'
-    },
     { 
       id: 'reports', 
       icon: List, 
@@ -212,7 +266,7 @@ const BottomNavigation = ({ currentView, onNavigate, userRole }) => {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-30">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t shadow-lg z-30 md:hidden">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-around items-center py-2">
           {navItems.map((item) => {
@@ -240,15 +294,15 @@ const BottomNavigation = ({ currentView, onNavigate, userRole }) => {
   );
 };
 
-// Dashboard para ciudadanos
-const CitizenDashboard = ({ user, onNavigate }) => {
+// Dashboard principal mejorado
+const AuthenticatedDashboard = ({ user, onNavigate }) => {
   return (
     <div className="space-y-6 pb-20">
       {/* Header de bienvenida */}
       <div className="bg-gradient-to-r from-emerald-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold">¡Bienvenido!</h2>
+            <h2 className="text-2xl font-bold">¡Bienvenido, {user?.nombre?.split(' ')[0]}!</h2>
             <p className="text-emerald-100 mt-1">
               Juntos construimos ciudades más limpias
             </p>
@@ -320,6 +374,19 @@ const CitizenDashboard = ({ user, onNavigate }) => {
               </div>
             </div>
           </button>
+
+          <button
+            onClick={() => onNavigate('reports')}
+            className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-xl shadow-md hover:shadow-lg transition-all duration-200 hover:scale-[1.02]"
+          >
+            <div className="flex items-center space-x-3">
+              <List className="w-6 h-6" />
+              <div className="text-left">
+                <p className="font-semibold">Mis Reportes</p>
+                <p className="text-purple-100 text-sm">Revisa el estado de tus reportes</p>
+              </div>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -331,6 +398,17 @@ const CitizenDashboard = ({ user, onNavigate }) => {
           <p>• 📍 El GPS detecta automáticamente la ubicación</p>
           <p>• 🏆 Gana puntos por cada reporte verificado</p>
           <p>• 🌱 Contribuye a una ciudad más limpia</p>
+        </div>
+      </div>
+
+      {/* Tips para ganar puntos */}
+      <div className="bg-emerald-50 rounded-xl p-4 border border-emerald-200">
+        <h4 className="font-semibold text-emerald-800 mb-2">💡 Tips para ganar puntos</h4>
+        <div className="space-y-2 text-sm text-emerald-700">
+          <p>• +10 puntos por cada reporte con foto</p>
+          <p>• +25 puntos cuando tu reporte sea resuelto</p>
+          <p>• +5 puntos por descripción detallada</p>
+          <p>• +50 puntos por logros especiales</p>
         </div>
       </div>
     </div>
@@ -351,41 +429,6 @@ const AppContent = () => {
   }
 
   const renderCurrentView = () => {
-    // Vistas para administradores
-    if (user?.role === 'admin') {
-      switch (currentView) {
-        case 'profile':
-          return <ProfilePage />;
-        case 'map':
-          return <MapPage />;
-        case 'admin-users':
-          return <div className="text-center py-20 text-gray-500">Panel de usuarios (próximamente)</div>;
-        case 'admin-reports':
-          return <div className="text-center py-20 text-gray-500">Gestión de reportes (próximamente)</div>;
-        case 'admin-points':
-          return <div className="text-center py-20 text-gray-500">Configuración de puntos (próximamente)</div>;
-        case 'admin-analytics':
-          return <div className="text-center py-20 text-gray-500">Análisis y reportes (próximamente)</div>;
-        default:
-          return <AdminDashboard onNavigate={setCurrentView} />;
-      }
-    }
-
-    // Vistas para autoridades
-    if (user?.role === 'authority') {
-      switch (currentView) {
-        case 'profile':
-          return <ProfilePage />;
-        case 'map':
-          return <MapPage />;
-        case 'authority-manage':
-          return <div className="text-center py-20 text-gray-500">Gestión de reportes (próximamente)</div>;
-        default:
-          return <AuthorityDashboard onNavigate={setCurrentView} />;
-      }
-    }
-
-    // Vistas para ciudadanos
     switch (currentView) {
       case 'create':
         return <CreateReport onReportCreated={() => setCurrentView('reports')} />;
@@ -396,21 +439,17 @@ const AppContent = () => {
       case 'reports':
         return <ReportsPage />;
       default:
-        return <CitizenDashboard user={user} onNavigate={setCurrentView} />;
+        return <AuthenticatedDashboard user={user} onNavigate={setCurrentView} />;
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navigation />
+      <Navigation currentView={currentView} onNavigate={setCurrentView} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {renderCurrentView()}
       </main>
-      <BottomNavigation 
-        currentView={currentView} 
-        onNavigate={setCurrentView} 
-        userRole={user?.role}
-      />
+      <BottomNavigation currentView={currentView} onNavigate={setCurrentView} />
     </div>
   );
 };

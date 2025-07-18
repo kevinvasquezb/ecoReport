@@ -13,7 +13,11 @@ import {
   Settings,
   Star,
   Target,
-  Trophy
+  Trophy,
+  Edit,
+  Mail,
+  Phone,
+  Shield
 } from 'lucide-react';
 
 const ProfilePage = () => {
@@ -25,6 +29,7 @@ const ProfilePage = () => {
     reportesRechazados: 0
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('stats');
 
   useEffect(() => {
     loadUserStats();
@@ -72,10 +77,27 @@ const ProfilePage = () => {
     return titles[level] || 'EcoReporter';
   };
 
+  const getLevelColor = (level) => {
+    const colors = {
+      1: 'from-gray-400 to-gray-500',
+      2: 'from-green-400 to-green-500',
+      3: 'from-blue-400 to-blue-500',
+      4: 'from-purple-400 to-purple-500',
+      5: 'from-yellow-400 to-yellow-500'
+    };
+    return colors[level] || 'from-gray-400 to-gray-500';
+  };
+
   const currentLevel = calculateLevel(user?.puntos || 0);
   const nextLevelPoints = getNextLevelPoints(currentLevel);
   const currentPoints = user?.puntos || 0;
   const progressToNext = currentLevel < 5 ? (currentPoints / nextLevelPoints) * 100 : 100;
+
+  const tabs = [
+    { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
+    { id: 'achievements', label: 'Logros', icon: Trophy },
+    { id: 'account', label: 'Cuenta', icon: Settings }
+  ];
 
   if (isLoading) {
     return (
@@ -85,50 +107,13 @@ const ProfilePage = () => {
           <div className="bg-gray-200 rounded-xl h-24"></div>
           <div className="bg-gray-200 rounded-xl h-24"></div>
         </div>
+        <div className="bg-gray-200 rounded-xl h-64"></div>
       </div>
     );
   }
 
-  return (
-    <div className="space-y-6 pb-20">
-      {/* Header del perfil */}
-      <div className="bg-gradient-to-r from-emerald-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
-        <div className="flex items-start space-x-4">
-          <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
-            <span className="text-3xl font-bold text-white">
-              {user?.nombre?.charAt(0).toUpperCase()}
-            </span>
-          </div>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold">{user?.nombre}</h1>
-            <p className="text-emerald-100 capitalize mb-2">{user?.role}</p>
-            <div className="flex items-center space-x-2 mb-3">
-              <Trophy className="w-5 h-5 text-yellow-300" />
-              <span className="text-lg font-semibold">{getLevelTitle(currentLevel)}</span>
-            </div>
-            
-            {/* Barra de progreso de nivel */}
-            {currentLevel < 5 && (
-              <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Nivel {currentLevel}</span>
-                  <span>Nivel {currentLevel + 1}</span>
-                </div>
-                <div className="w-full bg-white bg-opacity-20 rounded-full h-2">
-                  <div 
-                    className="bg-yellow-300 h-2 rounded-full transition-all duration-500"
-                    style={{ width: `${progressToNext}%` }}
-                  ></div>
-                </div>
-                <p className="text-xs text-emerald-100">
-                  {nextLevelPoints - currentPoints} puntos para el siguiente nivel
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
+  const renderStatsTab = () => (
+    <div className="space-y-6">
       {/* Estadísticas principales */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -192,11 +177,57 @@ const ProfilePage = () => {
         </div>
       </div>
 
+      {/* Progreso y nivel */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Progreso de Nivel</h3>
+        
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className={`w-12 h-12 bg-gradient-to-r ${getLevelColor(currentLevel)} rounded-lg flex items-center justify-center`}>
+                <Trophy className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="font-semibold text-gray-900">{getLevelTitle(currentLevel)}</p>
+                <p className="text-sm text-gray-600">Nivel {currentLevel}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-lg font-bold text-gray-900">{currentPoints}</p>
+              <p className="text-sm text-gray-600">puntos</p>
+            </div>
+          </div>
+
+          {/* Barra de progreso */}
+          {currentLevel < 5 && (
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Nivel {currentLevel}</span>
+                <span>Nivel {currentLevel + 1}</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div 
+                  className={`bg-gradient-to-r ${getLevelColor(currentLevel + 1)} h-3 rounded-full transition-all duration-500`}
+                  style={{ width: `${progressToNext}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-gray-500 text-center">
+                {nextLevelPoints - currentPoints} puntos para el siguiente nivel
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAchievementsTab = () => (
+    <div className="space-y-6">
       {/* Sistema de logros */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
           <Star className="w-5 h-5 text-yellow-500" />
-          <span>Logros</span>
+          <span>Logros Desbloqueados</span>
         </h3>
         
         <div className="grid grid-cols-1 gap-3">
@@ -247,70 +278,262 @@ const ProfilePage = () => {
               <CheckCircle className="w-5 h-5 text-purple-600" />
             )}
           </div>
+
+          {/* EcoReporter Comprometido */}
+          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.totalReportes >= 10 ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-50'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stats.totalReportes >= 10 ? 'bg-indigo-100' : 'bg-gray-200'}`}>
+              <Award className={`w-5 h-5 ${stats.totalReportes >= 10 ? 'text-indigo-600' : 'text-gray-400'}`} />
+            </div>
+            <div className="flex-1">
+              <p className={`font-medium ${stats.totalReportes >= 10 ? 'text-indigo-800' : 'text-gray-600'}`}>
+                EcoReporter Comprometido
+              </p>
+              <p className="text-sm text-gray-500">Crear 10 reportes ({stats.totalReportes}/10)</p>
+            </div>
+            {stats.totalReportes >= 10 && (
+              <CheckCircle className="w-5 h-5 text-indigo-600" />
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Próximos logros */}
+      <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+        <h4 className="font-semibold text-gray-900 mb-3">🎯 Próximos Logros</h4>
+        <div className="space-y-2 text-sm text-gray-600">
+          {stats.totalReportes < 5 && (
+            <p>• Crear {5 - stats.totalReportes} reportes más para ser "EcoReporter Activo"</p>
+          )}
+          {stats.reportesResueltos === 0 && (
+            <p>• Esperar a que resuelvan uno de tus reportes</p>
+          )}
+          {stats.totalReportes < 10 && stats.totalReportes >= 5 && (
+            <p>• Crear {10 - stats.totalReportes} reportes más para ser "EcoReporter Comprometido"</p>
+          )}
+          {currentPoints < 500 && (
+            <p>• Alcanzar 500 puntos para desbloquear el nivel "EcoReporter Comprometido"</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderAccountTab = () => (
+    <div className="space-y-6">
       {/* Información de la cuenta */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-          <Settings className="w-5 h-5 text-gray-600" />
-          <span>Información de la Cuenta</span>
-        </h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+            <User className="w-5 h-5 text-gray-600" />
+            <span>Información Personal</span>
+          </h3>
+          <button className="flex items-center space-x-1 text-emerald-600 hover:text-emerald-700">
+            <Edit className="w-4 h-4" />
+            <span className="text-sm">Editar</span>
+          </button>
+        </div>
         
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Email:</span>
-            <span className="font-medium text-gray-900">{user?.email}</span>
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+            <User className="w-5 h-5 text-gray-600" />
+            <div>
+              <p className="text-sm text-gray-600">Nombre completo</p>
+              <p className="font-medium text-gray-900">{user?.nombre}</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+            <Mail className="w-5 h-5 text-gray-600" />
+            <div>
+              <p className="text-sm text-gray-600">Correo electrónico</p>
+              <p className="font-medium text-gray-900">{user?.email}</p>
+            </div>
           </div>
           
           {user?.telefono && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-600">Teléfono:</span>
-              <span className="font-medium text-gray-900">{user.telefono}</span>
+            <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+              <Phone className="w-5 h-5 text-gray-600" />
+              <div>
+                <p className="text-sm text-gray-600">Teléfono</p>
+                <p className="font-medium text-gray-900">{user.telefono}</p>
+              </div>
             </div>
           )}
           
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Tipo de cuenta:</span>
-            <span className="font-medium text-gray-900 capitalize">{user?.role}</span>
+          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+            <Shield className="w-5 h-5 text-gray-600" />
+            <div>
+              <p className="text-sm text-gray-600">Tipo de cuenta</p>
+              <p className="font-medium text-gray-900 capitalize">{user?.role}</p>
+            </div>
           </div>
           
-          <div className="flex items-center justify-between">
-            <span className="text-gray-600">Miembro desde:</span>
-            <span className="font-medium text-gray-900">
-              {user?.created_at ? new Date(user.created_at).toLocaleDateString('es-ES') : 'N/A'}
-            </span>
+          <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+            <Calendar className="w-5 h-5 text-gray-600" />
+            <div>
+              <p className="text-sm text-gray-600">Miembro desde</p>
+              <p className="font-medium text-gray-900">
+                {user?.created_at ? new Date(user.created_at).toLocaleDateString('es-ES', {
+                  month: 'long',
+                  year: 'numeric'
+                }) : 'N/A'}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Cómo ganar más puntos */}
+      {/* Configuraciones */}
+      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+          <Settings className="w-5 h-5 text-gray-600" />
+          <span>Configuraciones</span>
+        </h3>
+        
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <span className="text-gray-700">Notificaciones por email</span>
+            <div className="w-10 h-6 bg-emerald-500 rounded-full relative">
+              <div className="w-4 h-4 bg-white rounded-full absolute top-1 right-1"></div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <span className="text-gray-700">Ubicación automática</span>
+            <div className="w-10 h-6 bg-emerald-500 rounded-full relative">
+              <div className="w-4 h-4 bg-white rounded-full absolute top-1 right-1"></div>
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <span className="text-gray-700">Reportes públicos</span>
+            <div className="w-10 h-6 bg-gray-300 rounded-full relative">
+              <div className="w-4 h-4 bg-white rounded-full absolute top-1 left-1"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6 pb-20">
+      {/* Header del perfil */}
+      <div className="bg-gradient-to-r from-emerald-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
+        <div className="flex items-start space-x-4">
+          <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
+            <span className="text-3xl font-bold text-white">
+              {user?.nombre?.charAt(0).toUpperCase()}
+            </span>
+          </div>
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold">{user?.nombre}</h1>
+            <p className="text-emerald-100 capitalize mb-2">{user?.role}</p>
+            <div className="flex items-center space-x-2 mb-3">
+              <Trophy className="w-5 h-5 text-yellow-300" />
+              <span className="text-lg font-semibold">{getLevelTitle(currentLevel)}</span>
+            </div>
+            
+            {/* Barra de progreso de nivel */}
+            {currentLevel < 5 && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Nivel {currentLevel}</span>
+                  <span>Nivel {currentLevel + 1}</span>
+                </div>
+                <div className="w-full bg-white bg-opacity-20 rounded-full h-2">
+                  <div 
+                    className="bg-yellow-300 h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${progressToNext}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-emerald-100">
+                  {nextLevelPoints - currentPoints} puntos para el siguiente nivel
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Navegación por tabs */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex">
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Contenido de tabs */}
+      {activeTab === 'stats' && renderStatsTab()}
+      {activeTab === 'achievements' && renderAchievementsTab()}
+      {activeTab === 'account' && renderAccountTab()}
+
+      {/* Consejos para ganar puntos */}
       <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl p-6 border border-emerald-200">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-          <Award className="w-5 h-5 text-emerald-600" />
+          <Target className="w-5 h-5 text-emerald-600" />
           <span>¿Cómo ganar más puntos?</span>
         </h3>
         
-        <div className="space-y-3 text-sm">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center">
-              <span className="text-emerald-600 font-bold">+10</span>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-3">
+            <div className="flex items-start space-x-3">
+              <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-emerald-600">+10</span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Crear un reporte</p>
+                <p className="text-sm text-gray-600">Por cada reporte con foto y ubicación</p>
+              </div>
             </div>
-            <span className="text-gray-700">Por cada reporte creado</span>
+            
+            <div className="flex items-start space-x-3">
+              <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-blue-600">+25</span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Reporte resuelto</p>
+                <p className="text-sm text-gray-600">Cuando tu reporte sea marcado como limpio</p>
+              </div>
+            </div>
           </div>
           
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="text-blue-600 font-bold">+25</span>
+          <div className="space-y-3">
+            <div className="flex items-start space-x-3">
+              <div className="w-6 h-6 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-purple-600">+5</span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Reporte verificado</p>
+                <p className="text-sm text-gray-600">Por descripción detallada y ubicación precisa</p>
+              </div>
             </div>
-            <span className="text-gray-700">Cuando tu reporte es resuelto</span>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
-              <span className="text-purple-600 font-bold">+50</span>
+            
+            <div className="flex items-start space-x-3">
+              <div className="w-6 h-6 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <span className="text-xs font-bold text-yellow-600">+50</span>
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Logro especial</p>
+                <p className="text-sm text-gray-600">Por alcanzar metas y comportamiento ejemplar</p>
+              </div>
             </div>
-            <span className="text-gray-700">Por reportes con alta prioridad</span>
           </div>
         </div>
       </div>
