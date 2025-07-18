@@ -1,0 +1,132 @@
+# ================================
+# ECOREPORTS - .gitignore SEGURO
+# ================================
+
+# 🔒 ARCHIVOS SENSIBLES (CRÍTICO)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+
+# 🔑 Archivos de configuración sensibles
+config/database.js
+config/secrets.js
+config/production.js
+
+# 📦 Dependencias Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# 📁 Directorios de build
+build/
+dist/
+out/
+
+# 🗃️ Bases de datos locales
+*.db
+*.sqlite
+*.sqlite3
+db.sqlite3
+
+# 📄 Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# 💾 Cache y temporales
+.cache/
+.temp/
+.tmp/
+*.tgz
+*.tar.gz
+
+# 🖥️ Sistema operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# 📝 Editores
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 🧪 Testing
+coverage/
+.nyc_output/
+.jest/
+
+# 📱 React/Frontend específico
+# React build
+/frontend/build
+/frontend/dist
+
+# React dependencies
+/frontend/node_modules
+
+# React cache
+/frontend/.cache
+
+# 🖥️ Backend específico
+# Backend uploads (imágenes locales)
+/backend/uploads/
+/backend/temp/
+
+# Backend dependencies
+/backend/node_modules
+
+# Backend logs
+/backend/logs/
+
+# 🐳 Docker
+.dockerignore
+docker-compose.override.yml
+
+# ☁️ Vercel
+.vercel
+
+# 🚀 Railway
+.railway/
+
+# 📊 Análisis y reportes
+.analytics/
+reports/
+
+# 🔧 Herramientas de desarrollo
+.eslintcache
+.prettierignore
+
+# 📸 Archivos multimedia grandes (solo ejemplos)
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.mkv
+
+# 💼 Archivos de backup
+*.backup
+*.bak
+*.old
+
+# 🔐 Certificados y llaves
+*.pem
+*.key
+*.crt
+*.csr
+
+# 📋 Archivos de configuración específicos
+.env.example.backup
