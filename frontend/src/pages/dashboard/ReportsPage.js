@@ -74,6 +74,13 @@ const ReportsPage = () => {
     setFilteredReportes(filtered);
   };
 
+  // ✅ FUNCIÓN CORREGIDA para formatear coordenadas
+  const formatCoordinate = (coord) => {
+    if (!coord) return 'N/A';
+    const num = parseFloat(coord);
+    return isNaN(num) ? coord : num.toFixed(4);
+  };
+
   const getStatusIcon = (estado) => {
     switch (estado) {
       case 'Limpio':
@@ -271,10 +278,10 @@ const ReportsPage = () => {
                   )}
                 </div>
 
-                {/* Coordenadas */}
+                {/* Coordenadas - ✅ CORREGIDO */}
                 <div className="mt-3 pt-3 border-t border-gray-100">
                   <p className="text-xs text-gray-500">
-                    Ubicación: {reporte.latitud}, {reporte.longitud}
+                    Ubicación: {formatCoordinate(reporte.latitud)}, {formatCoordinate(reporte.longitud)}
                   </p>
                 </div>
               </div>

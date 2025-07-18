@@ -1,285 +1,198 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
-import { authAPI, storage } from '../utils/api';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authAPI } from '../utils/api';
 
-// Estados del contexto de autenticación
-const initialState = {
-  user: null,
-  token: null,
-  isAuthenticated: false,
-  isLoading: true,
-  error: null,
-};
-
-// Tipos de acciones
-const AUTH_ACTIONS = {
-  SET_LOADING: 'SET_LOADING',
-  SET_USER: 'SET_USER',
-  SET_ERROR: 'SET_ERROR',
-  LOGOUT: 'LOGOUT',
-  CLEAR_ERROR: 'CLEAR_ERROR',
-};
-
-// Reducer para manejar el estado de autenticación
-const authReducer = (state, action) => {
-  switch (action.type) {
-    case AUTH_ACTIONS.SET_LOADING:
-      return {
-        ...state,
-        isLoading: action.payload,
-        error: null,
-      };
-
-    case AUTH_ACTIONS.SET_USER:
-      return {
-        ...state,
-        user: action.payload.user,
-        token: action.payload.token,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-      };
-
-    case AUTH_ACTIONS.SET_ERROR:
-      return {
-        ...state,
-        error: action.payload,
-        isLoading: false,
-      };
-
-    case AUTH_ACTIONS.LOGOUT:
-      return {
-        ...state,
-        user: null,
-        token: null,
-        isAuthenticated: false,
-        isLoading: false,
-        error: null,
-      };
-
-    case AUTH_ACTIONS.CLEAR_ERROR:
-      return {
-        ...state,
-        error: null,
-      };
-
-    default:
-      return state;
-  }
-};
-
-// Crear contexto
 const AuthContext = createContext();
 
-// Hook personalizado para usar el contexto
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth debe usarse dentro de un AuthProvider');
+    throw new Error('useAuth debe ser usado dentro de AuthProvider');
   }
   return context;
 };
 
-// Provider del contexto de autenticación
 export const AuthProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(authReducer, initialState);
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  // Función para limpiar errores
-  const clearError = () => {
-    dispatch({ type: AUTH_ACTIONS.CLEAR_ERROR });
-  };
-
-  // Función para registrar usuario
-  const register = async (userData) => {
+  // ✅ Función para guardar datos de autenticación
+  const saveAuthData = (token, userData) => {
     try {
-      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
-      clearError();
-
-      console.log('📝 Registrando usuario:', userData);
-
-      const response = await authAPI.register(userData);
-      
-      if (response.token && response.usuario) {
-        // Guardar en localStorage
-        storage.setToken(response.token);
-        storage.setUser(response.usuario);
-
-        // Actualizar estado
-        dispatch({
-          type: AUTH_ACTIONS.SET_USER,
-          payload: {
-            user: response.usuario,
-            token: response.token,
-          },
-        });
-
-        console.log('✅ Usuario registrado exitosamente:', response.usuario);
-        return { success: true, user: response.usuario };
-      } else {
-        throw new Error('Respuesta del servidor inválida');
-      }
-    } catch (error) {
-      console.error('❌ Error en registro:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Error en el registro';
-      
-      dispatch({
-        type: AUTH_ACTIONS.SET_ERROR,
-        payload: errorMessage,
+      console.log('💾 Guardando datos de autenticación:', { 
+        token: token?.substring(0, 20) + '...', 
+        user: userData?.nombre 
       });
-
-      return { success: false, error: errorMessage };
+      
+      localStorage.setItem('ecoreports_token', token);
+      localStorage.setItem('ecoreports_user', JSON.stringify(userData));
+      
+      setUser(userData);
+      setIsAuthenticated(true);
+      
+      console.log('✅ Datos guardados y estado actualizado');
+    } catch (error) {
+      console.error('❌ Error guardando datos de auth:', error);
     }
   };
 
-  // Función para hacer login
+  // ✅ Función para limpiar datos de autenticación
+  const clearAuthData = () => {
+    console.log('🧹 Limpiando datos de autenticación');
+    
+    localStorage.removeItem('ecoreports_token');
+    localStorage.removeItem('ecoreports_user');
+    
+    setUser(null);
+    setIsAuthenticated(false);
+  };
+
+  // ✅ Función de login
   const login = async (credentials) => {
     try {
-      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: true });
-      clearError();
-
-      console.log('🔐 Iniciando sesión:', { email: credentials.email });
-
+      console.log('🔑 Iniciando login para:', credentials.email);
+      
       const response = await authAPI.login(credentials);
+      console.log('📨 Respuesta del login:', response);
       
       if (response.token && response.usuario) {
-        // Guardar en localStorage
-        storage.setToken(response.token);
-        storage.setUser(response.usuario);
-
-        // Actualizar estado
-        dispatch({
-          type: AUTH_ACTIONS.SET_USER,
-          payload: {
-            user: response.usuario,
-            token: response.token,
-          },
-        });
-
-        console.log('✅ Login exitoso:', response.usuario);
-        return { success: true, user: response.usuario };
+        saveAuthData(response.token, response.usuario);
+        return { success: true };
       } else {
-        throw new Error('Respuesta del servidor inválida');
+        console.error('❌ Respuesta de login inválida:', response);
+        return { success: false, error: 'Respuesta de login inválida' };
       }
     } catch (error) {
       console.error('❌ Error en login:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Error en el login';
-      
-      dispatch({
-        type: AUTH_ACTIONS.SET_ERROR,
-        payload: errorMessage,
-      });
-
+      const errorMessage = error.response?.data?.error || error.message || 'Error de conexión';
       return { success: false, error: errorMessage };
     }
   };
 
-  // Función para hacer logout
-  const logout = () => {
-    console.log('🚪 Cerrando sesión');
-    
-    // Limpiar localStorage
-    storage.clear();
-    
-    // Actualizar estado
-    dispatch({ type: AUTH_ACTIONS.LOGOUT });
-  };
-
-  // Función para verificar autenticación al cargar la app
-  const checkAuth = async () => {
+  // ✅ Función de registro
+  const register = async (userData) => {
     try {
-      const token = storage.getToken();
-      const savedUser = storage.getUser();
-
-      if (!token || !savedUser) {
-        dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
-        return;
-      }
-
-      console.log('🔍 Verificando autenticación existente...');
-
-      // Verificar que el token siga siendo válido
-      const response = await authAPI.getProfile();
+      console.log('📝 Iniciando registro para:', userData.email);
       
-      if (response.usuario) {
-        // Token válido, restaurar sesión
-        dispatch({
-          type: AUTH_ACTIONS.SET_USER,
-          payload: {
-            user: response.usuario,
-            token: token,
-          },
-        });
-
-        console.log('✅ Sesión restaurada:', response.usuario);
+      const response = await authAPI.register(userData);
+      console.log('📨 Respuesta del registro:', response);
+      
+      if (response.token && response.usuario) {
+        saveAuthData(response.token, response.usuario);
+        return { success: true };
       } else {
-        // Token inválido, limpiar
-        storage.clear();
-        dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+        console.error('❌ Respuesta de registro inválida:', response);
+        return { success: false, error: 'Respuesta de registro inválida' };
       }
     } catch (error) {
-      console.log('⚠️ Token inválido, limpiando sesión');
-      
-      // Token inválido o error de red
-      storage.clear();
-      dispatch({ type: AUTH_ACTIONS.SET_LOADING, payload: false });
+      console.error('❌ Error en registro:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Error de conexión';
+      return { success: false, error: errorMessage };
     }
   };
 
-  // Función para actualizar perfil del usuario
-  const updateProfile = async () => {
+  // ✅ Función de logout
+  const logout = () => {
+    console.log('👋 Cerrando sesión');
+    clearAuthData();
+  };
+
+  // ✅ Función para verificar si el token es válido
+  const isTokenValid = (token) => {
+    if (!token) return false;
+    
     try {
-      const response = await authAPI.getProfile();
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      const currentTime = Date.now() / 1000;
       
-      if (response.usuario) {
-        storage.setUser(response.usuario);
-        dispatch({
-          type: AUTH_ACTIONS.SET_USER,
-          payload: {
-            user: response.usuario,
-            token: state.token,
-          },
-        });
+      if (payload.exp < currentTime) {
+        console.log('⚠️ Token expirado');
+        return false;
       }
+      
+      return true;
     } catch (error) {
-      console.error('❌ Error actualizando perfil:', error);
+      console.error('❌ Error validando token:', error);
+      return false;
     }
   };
 
-  // Verificar autenticación al montar el componente
-  useEffect(() => {
-    checkAuth();
-  }, []);
-
-  // Funciones utilitarias
-  const isRole = (role) => {
-    return state.user?.role === role;
+  // ✅ Función para cargar datos desde localStorage al iniciar
+  const loadAuthData = async () => {
+    try {
+      console.log('🔍 Verificando localStorage al iniciar...');
+      
+      const token = localStorage.getItem('ecoreports_token');
+      const userDataString = localStorage.getItem('ecoreports_user');
+      
+      if (token && userDataString) {
+        console.log('🔍 Datos encontrados en localStorage');
+        
+        // Validar token
+        if (!isTokenValid(token)) {
+          console.log('⚠️ Token inválido o expirado, limpiando');
+          clearAuthData();
+          return;
+        }
+        
+        // Parsear datos del usuario
+        const userData = JSON.parse(userDataString);
+        console.log('👤 Restaurando sesión para:', userData.nombre);
+        
+        // ✅ IMPORTANTE: Verificar que el token sigue siendo válido en el backend
+        try {
+          const profileResponse = await authAPI.getProfile();
+          console.log('✅ Token válido en backend, sesión restaurada');
+          
+          // Actualizar con datos frescos del backend
+          saveAuthData(token, profileResponse.usuario || userData);
+        } catch (profileError) {
+          console.log('❌ Token no válido en backend, limpiando');
+          clearAuthData();
+        }
+      } else {
+        console.log('ℹ️ No hay sesión guardada');
+        setIsAuthenticated(false);
+        setUser(null);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando datos de auth:', error);
+      clearAuthData();
+    }
   };
 
-  const isCitizen = () => isRole('citizen');
-  const isAuthority = () => isRole('authority');
-  const isAdmin = () => isRole('admin');
+  // ✅ Efecto para cargar datos al inicializar (SOLO UNA VEZ)
+  useEffect(() => {
+    const initAuth = async () => {
+      console.log('🚀 Inicializando AuthContext...');
+      setIsLoading(true);
+      await loadAuthData();
+      setIsLoading(false);
+      console.log('✅ AuthContext inicializado');
+    };
 
-  // Valor del contexto
+    initAuth();
+  }, []); // ✅ Array vacío = solo se ejecuta una vez
+
+  // ✅ Debug del estado (solo cuando cambia)
+  useEffect(() => {
+    console.log('🔄 Estado AuthContext:', {
+      isAuthenticated,
+      userName: user?.nombre,
+      userRole: user?.role,
+      isLoading
+    });
+  }, [isAuthenticated, user, isLoading]);
+
   const value = {
-    // Estado
-    user: state.user,
-    token: state.token,
-    isAuthenticated: state.isAuthenticated,
-    isLoading: state.isLoading,
-    error: state.error,
-
-    // Funciones
-    register,
+    user,
+    isAuthenticated,
+    isLoading,
     login,
+    register,
     logout,
-    clearError,
-    updateProfile,
-    checkAuth,
-
-    // Utilidades
-    isRole,
-    isCitizen,
-    isAuthority,
-    isAdmin,
+    saveAuthData,
+    clearAuthData
   };
 
   return (
@@ -288,5 +201,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export default AuthContext;

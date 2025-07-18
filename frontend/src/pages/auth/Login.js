@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { Eye, EyeOff, Mail, Lock, LogIn, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, LogIn, Loader2, AlertCircle } from 'lucide-react';
 
 const Login = ({ onToggleForm }) => {
-  const { login, error, isLoading } = useAuth();
+  const { login, isLoading } = useAuth();
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+    email: '', // ✅ VACÍO para producción
+    password: '' // ✅ VACÍO para producción
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [localError, setLocalError] = useState('');
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -16,28 +17,46 @@ const Login = ({ onToggleForm }) => {
       ...prev,
       [name]: value
     }));
+    if (localError) setLocalError('');
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    console.log('🔑 Login - Iniciando proceso...', { email: formData.email });
+    setLocalError('');
+    
     if (!formData.email || !formData.password) {
+      setLocalError('Email y contraseña son requeridos');
       return;
     }
 
-    const result = await login(formData);
-    
-    if (result.success) {
-      console.log('✅ Login exitoso, usuario autenticado');
+    try {
+      const result = await login({
+        email: formData.email.trim().toLowerCase(),
+        password: formData.password
+      });
+
+      if (result.success) {
+        console.log('✅ Login exitoso, usuario autenticado');
+      } else {
+        setLocalError(result.error || 'Credenciales incorrectas');
+      }
+    } catch (error) {
+      console.error('❌ Error en handleSubmit:', error);
+      setLocalError('Error de conexión. Verifica que el backend esté corriendo.');
     }
   };
 
   return (
     <div className="space-y-6">
       {/* Error message */}
-      {error && (
+      {localError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-600 text-sm">{error}</p>
+          <div className="flex items-center space-x-2">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
+            <p className="text-red-600 text-sm">{localError}</p>
+          </div>
         </div>
       )}
 
@@ -124,6 +143,8 @@ const Login = ({ onToggleForm }) => {
           ¿No tienes cuenta? Regístrate aquí
         </button>
       </div>
+
+
     </div>
   );
 };

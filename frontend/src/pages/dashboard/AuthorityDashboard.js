@@ -70,7 +70,6 @@ const AuthorityDashboard = ({ onNavigate }) => {
 
   const handleUpdateReporte = async (reporteId, nuevoEstado) => {
     try {
-      // Aquí implementarías la actualización del reporte
       console.log(`Autoridad actualizando reporte ${reporteId} a: ${nuevoEstado}`);
       
       // Simular actualización local
@@ -101,6 +100,13 @@ const AuthorityDashboard = ({ onNavigate }) => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // ✅ FUNCIÓN CORREGIDA para formatear coordenadas
+  const formatCoordinate = (coord) => {
+    if (!coord) return 'N/A';
+    const num = parseFloat(coord);
+    return isNaN(num) ? coord : num.toFixed(4);
   };
 
   const getStatusColor = (estado) => {
@@ -382,7 +388,8 @@ const AuthorityDashboard = ({ onNavigate }) => {
                     </div>
                     <div className="flex items-center space-x-1">
                       <MapPin className="w-3 h-3" />
-                      <span>{reporte.latitud?.toFixed(4)}, {reporte.longitud?.toFixed(4)}</span>
+                      {/* ✅ CORREGIDO: Usar formatCoordinate para evitar error */}
+                      <span>{formatCoordinate(reporte.latitud)}, {formatCoordinate(reporte.longitud)}</span>
                     </div>
                   </div>
                   <span>{formatDate(reporte.created_at)}</span>
