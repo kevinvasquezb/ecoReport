@@ -4,419 +4,301 @@ const authMiddleware = require('../middleware/auth');
 
 const router = express.Router();
 
-// GET /api/stats/dashboard - Estadísticas para el dashboard
-router.get('/dashboard', authMiddleware, async (req, res) => {
+// GET /api/stats/user/:id - Estadísticas detalladas de usuario
+router.get('/user/:id', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const userRole = req.user.role;
+    const userId = parseInt(req.params.id);
+    const currentUserId = req.user.id;
 
-    console.log(`📊 Obteniendo estadísticas dashboard para usuario ${userId} (${userRole})`);
-
-    let userStats = {};
-    let globalStats = {};
-
-    if (userRole === 'citizen') {
-      // Estadísticas del ciudadano
-      const userStatsQuery = await pool.query(`
-        SELECT 
-          COUNT(*) as total_reportes,
-          COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as reportes_resueltos,
-          COUNT(CASE WHEN estado = 'En proceso' THEN 1 END) as reportes_en_proceso,
-          COUNT(CASE WHEN estado = 'Reportado' THEN 1 END) as reportes_pendientes,
-          COUNT(CASE WHEN estado = 'Rechazado' THEN 1 END) as reportes_rechazados,
-          COUNT(CASE WHEN imagen_url IS NOT NULL THEN 1 END) as reportes_con_imagen,
-          COALESCE(AVG(CASE WHEN estado = 'Limpio' AND fecha_resolucion IS NOT NULL THEN 
-            EXTRACT(EPOCH FROM (fecha_resolucion - created_at))/86400 
-          END), 0) as tiempo_promedio_resolucion_dias
-        FROM reportes 
-        WHERE usuario_id = $1 AND activo = true
-      `, [userId]);
-
-      userStats = userStatsQuery.rows[0];
-
-      // Estadísticas de tendencia mensual del usuario
-      const trendQuery = await pool.query(`
-        SELECT 
-          DATE_TRUNC('month', created_at) as mes,
-          COUNT(*) as cantidad
-        FROM reportes 
-        WHERE usuario_id = $1 AND activo = true
-        AND created_at >= NOW() - INTERVAL '6 months'
-        GROUP BY DATE_TRUNC('month', created_at)
-        ORDER BY mes DESC
-        LIMIT 6
-      `, [userId]);
-
-      userStats.tendencia_mensual = trendQuery.rows;
-
-    } else if (userRole === 'authority' || userRole === 'admin') {
-      // Estadísticas globales para autoridades
-      const globalStatsQuery = await pool.query(`
-        SELECT 
-          COUNT(*) as total_reportes,
-          COUNT(CASE WHEN estado = 'Reportado' THEN 1 END) as pendientes,
-          COUNT(CASE WHEN estado = 'En proceso' THEN 1 END) as en_proceso,
-          COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as resueltos,
-          COUNT(CASE WHEN estado = 'Rechazado' THEN 1 END) as rechazados,
-          COUNT(CASE WHEN created_at >= CURRENT_DATE THEN 1 END) as reportes_hoy,
-          COUNT(CASE WHEN created_at >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as reportes_semana,
-          COUNT(CASE WHEN imagen_url IS NOT NULL THEN 1 END) as con_imagen
-        FROM reportes 
-        WHERE activo = true
-      `);
-
-      globalStats = globalStatsQuery.rows[0];
-
-      // Top tipos de residuos
-      const tiposQuery = await pool.query(`
-        SELECT 
-          tipo_estimado,
-          COUNT(*) as cantidad,
-          COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as resueltos
-        FROM reportes 
-        WHERE activo = true AND tipo_estimado IS NOT NULL
-        GROUP BY tipo_estimado
-        ORDER BY cantidad DESC
-        LIMIT 10
-      `);
-
-      globalStats.tipos_residuos = tiposQuery.rows;
-
-      // Estadísticas por zona (usando coordenadas)
-      const zonasQuery = await pool.query(`
-        SELECT 
-          ROUND(latitud::numeric, 2) as lat_zona,
-          ROUND(longitud::numeric, 2) as lng_zona,
-          COUNT(*) as cantidad,
-          AVG(CASE WHEN estado = 'Limpio' AND fecha_resolucion IS NOT NULL THEN 
-            EXTRACT(EPOCH FROM (fecha_resolucion - created_at))/86400 
-          END) as tiempo_promedio_resolucion
-        FROM reportes 
-        WHERE activo = true
-        GROUP BY ROUND(latitud::numeric, 2), ROUND(longitud::numeric, 2)
-        HAVING COUNT(*) > 1
-        ORDER BY cantidad DESC
-        LIMIT 20
-      `);
-
-      globalStats.zonas_problematicas = zonasQuery.rows;
-
-      // Tendencia de reportes por día (últimos 30 días)
-      const tendenciaQuery = await pool.query(`
-        SELECT 
-          DATE(created_at) as fecha,
-          COUNT(*) as reportes_creados,
-          COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as reportes_resueltos
-        FROM reportes 
-        WHERE activo = true 
-        AND created_at >= CURRENT_DATE - INTERVAL '30 days'
-        GROUP BY DATE(created_at)
-        ORDER BY fecha DESC
-      `);
-
-      globalStats.tendencia_diaria = tendenciaQuery.rows;
-    }
-
-    // Estadísticas generales del sistema
-    const systemStatsQuery = await pool.query(`
-      SELECT 
-        (SELECT COUNT(*) FROM usuarios WHERE activo = true) as total_usuarios,
-        (SELECT COUNT(*) FROM usuarios WHERE role = 'citizen' AND activo = true) as ciudadanos,
-        (SELECT COUNT(*) FROM usuarios WHERE role = 'authority' AND activo = true) as autoridades,
-        (SELECT COUNT(*) FROM reportes WHERE activo = true) as total_reportes_sistema,
-        (SELECT AVG(puntos) FROM usuarios WHERE role = 'citizen' AND activo = true) as promedio_puntos_ciudadanos
-    `);
-
-    const systemStats = systemStatsQuery.rows[0];
-
-    // Ranking de usuarios (solo para citizens)
-    let ranking = [];
-    if (userRole === 'citizen') {
-      const rankingQuery = await pool.query(`
-        SELECT 
-          nombre,
-          puntos,
-          nivel,
-          (SELECT COUNT(*) FROM reportes r WHERE r.usuario_id = u.id AND r.activo = true) as total_reportes,
-          ROW_NUMBER() OVER (ORDER BY puntos DESC) as posicion
-        FROM usuarios u
-        WHERE role = 'citizen' AND activo = true
-        ORDER BY puntos DESC
-        LIMIT 10
-      `);
-
-      ranking = rankingQuery.rows;
-
-      // Encontrar posición del usuario actual
-      const userRankQuery = await pool.query(`
-        SELECT 
-          COUNT(*) as usuarios_arriba
-        FROM usuarios 
-        WHERE role = 'citizen' AND activo = true AND puntos > (
-          SELECT puntos FROM usuarios WHERE id = $1
-        )
-      `, [userId]);
-
-      userStats.posicion_ranking = userRankQuery.rows[0].usuarios_arriba + 1;
-    }
-
-    const response = {
-      user_stats: userStats,
-      global_stats: globalStats,
-      system_stats: systemStats,
-      ranking: ranking,
-      user: {
-        id: userId,
-        role: userRole
-      },
-      generated_at: new Date().toISOString()
-    };
-
-    console.log('✅ Estadísticas generadas exitosamente');
-
-    res.json(response);
-
-  } catch (error) {
-    console.error('❌ Error obteniendo estadísticas:', error);
-    res.status(500).json({ 
-      error: 'Error interno del servidor',
-      details: error.message,
-      code: 'STATS_ERROR'
-    });
-  }
-});
-
-// GET /api/stats/user/:userId - Estadísticas específicas de un usuario (solo autoridades)
-router.get('/user/:userId', authMiddleware, async (req, res) => {
-  try {
-    const requestingUserId = req.user.id;
-    const requestingUserRole = req.user.role;
-    const targetUserId = parseInt(req.params.userId);
-
-    // Solo autoridades pueden ver estadísticas de otros usuarios
-    if (requestingUserRole !== 'authority' && requestingUserRole !== 'admin' && requestingUserId !== targetUserId) {
-      return res.status(403).json({ 
-        error: 'No tienes permisos para ver estas estadísticas',
-        code: 'INSUFFICIENT_PERMISSIONS'
-      });
-    }
-
-    if (isNaN(targetUserId)) {
+    // Validar que el ID sea un número válido
+    if (isNaN(userId)) {
       return res.status(400).json({ 
         error: 'ID de usuario inválido',
         code: 'INVALID_USER_ID'
       });
     }
 
-    // Verificar que el usuario existe
-    const userQuery = await pool.query(
-      'SELECT id, nombre, email, role, puntos, nivel, created_at FROM usuarios WHERE id = $1 AND activo = true',
-      [targetUserId]
-    );
+    // Solo el propio usuario o autoridades pueden ver estadísticas
+    if (userId !== currentUserId && req.user.role !== 'authority' && req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        error: 'Sin permisos para ver estas estadísticas',
+        code: 'FORBIDDEN'
+      });
+    }
 
-    if (userQuery.rows.length === 0) {
+    // Estadísticas principales del usuario
+    const userStats = await pool.query(`
+      SELECT 
+        u.id,
+        u.nombre,
+        u.email,
+        u.puntos,
+        u.nivel,
+        u.created_at as usuario_desde,
+        COUNT(r.id) as total_reportes,
+        COUNT(CASE WHEN r.estado = 'Limpio' THEN 1 END) as reportes_resueltos,
+        COUNT(CASE WHEN r.estado IN ('Reportado', 'En proceso') THEN 1 END) as reportes_pendientes,
+        COUNT(CASE WHEN r.estado = 'Rechazado' THEN 1 END) as reportes_rechazados,
+        COUNT(CASE WHEN r.created_at >= NOW() - INTERVAL '7 days' THEN 1 END) as reportes_ultima_semana,
+        COUNT(CASE WHEN r.created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as reportes_ultimo_mes
+      FROM usuarios u
+      LEFT JOIN reportes r ON u.id = r.usuario_id AND r.activo = true
+      WHERE u.id = $1 AND u.activo = true
+      GROUP BY u.id, u.nombre, u.email, u.puntos, u.nivel, u.created_at
+    `, [userId]);
+
+    if (userStats.rows.length === 0) {
       return res.status(404).json({ 
         error: 'Usuario no encontrado',
         code: 'USER_NOT_FOUND'
       });
     }
 
-    const targetUser = userQuery.rows[0];
+    const stats = userStats.rows[0];
+    
+    // Calcular ranking del usuario
+    const ranking = await pool.query(`
+      SELECT COUNT(*) + 1 as posicion
+      FROM usuarios 
+      WHERE puntos > $1 AND activo = true
+    `, [stats.puntos]);
 
-    // Estadísticas detalladas del usuario
-    const statsQuery = await pool.query(`
+    // Estadísticas de reportes por mes (últimos 6 meses)
+    const reportesPorMes = await pool.query(`
       SELECT 
-        COUNT(*) as total_reportes,
-        COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as reportes_resueltos,
-        COUNT(CASE WHEN estado = 'En proceso' THEN 1 END) as reportes_en_proceso,
-        COUNT(CASE WHEN estado = 'Reportado' THEN 1 END) as reportes_pendientes,
-        COUNT(CASE WHEN estado = 'Rechazado' THEN 1 END) as reportes_rechazados,
-        COUNT(CASE WHEN imagen_url IS NOT NULL THEN 1 END) as reportes_con_imagen,
-        MIN(created_at) as primer_reporte,
-        MAX(created_at) as ultimo_reporte,
-        COUNT(DISTINCT tipo_estimado) as tipos_diferentes_reportados,
-        AVG(CASE WHEN estado = 'Limpio' AND fecha_resolucion IS NOT NULL THEN 
-          EXTRACT(EPOCH FROM (fecha_resolucion - created_at))/86400 
-        END) as tiempo_promedio_resolucion_dias
+        TO_CHAR(created_at, 'YYYY-MM') as mes,
+        COUNT(*) as cantidad
       FROM reportes 
-      WHERE usuario_id = $1 AND activo = true
-    `, [targetUserId]);
-
-    const userStats = statsQuery.rows[0];
-
-    // Actividad mensual
-    const activityQuery = await pool.query(`
-      SELECT 
-        DATE_TRUNC('month', created_at) as mes,
-        COUNT(*) as reportes_creados,
-        COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as reportes_resueltos
-      FROM reportes 
-      WHERE usuario_id = $1 AND activo = true
-      AND created_at >= NOW() - INTERVAL '12 months'
-      GROUP BY DATE_TRUNC('month', created_at)
+      WHERE usuario_id = $1 AND activo = true 
+        AND created_at >= NOW() - INTERVAL '6 months'
+      GROUP BY TO_CHAR(created_at, 'YYYY-MM')
       ORDER BY mes DESC
-    `, [targetUserId]);
+    `, [userId]);
 
-    // Tipos de residuos reportados
-    const tiposQuery = await pool.query(`
+    // Tipos de residuos más reportados por el usuario
+    const tiposResiduos = await pool.query(`
       SELECT 
-        tipo_estimado,
-        COUNT(*) as cantidad,
-        COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as resueltos
+        COALESCE(tipo_estimado, 'Sin clasificar') as tipo,
+        COUNT(*) as cantidad
       FROM reportes 
-      WHERE usuario_id = $1 AND activo = true AND tipo_estimado IS NOT NULL
+      WHERE usuario_id = $1 AND activo = true
       GROUP BY tipo_estimado
       ORDER BY cantidad DESC
-    `, [targetUserId]);
+      LIMIT 5
+    `, [userId]);
 
-    const response = {
-      user: targetUser,
-      stats: userStats,
-      activity_monthly: activityQuery.rows,
-      waste_types: tiposQuery.rows,
-      generated_at: new Date().toISOString(),
-      generated_by: {
-        id: requestingUserId,
-        role: requestingUserRole
-      }
-    };
+    // Tiempo promedio de resolución de reportes del usuario
+    const tiempoResolucion = await pool.query(`
+      SELECT 
+        ROUND(AVG(EXTRACT(EPOCH FROM (fecha_resolucion - created_at))/3600), 2) as horas_promedio
+      FROM reportes 
+      WHERE usuario_id = $1 AND estado = 'Limpio' 
+        AND fecha_resolucion IS NOT NULL AND activo = true
+    `, [userId]);
 
-    console.log(`✅ Estadísticas de usuario ${targetUserId} generadas para ${requestingUserId}`);
+    console.log(`✅ Estadísticas consultadas para usuario ${userId} por ${currentUserId}`);
 
-    res.json(response);
+    res.json({
+      success: true,
+      stats: {
+        ...stats,
+        ranking: ranking.rows[0].posicion || 1,
+        porcentaje_resueltos: stats.total_reportes > 0 
+          ? Math.round((stats.reportes_resueltos / stats.total_reportes) * 100) 
+          : 0,
+        tiempo_promedio_resolucion: tiempoResolucion.rows[0]?.horas_promedio || null
+      },
+      reportesPorMes: reportesPorMes.rows,
+      tiposResiduos: tiposResiduos.rows
+    });
 
   } catch (error) {
     console.error('❌ Error obteniendo estadísticas de usuario:', error);
     res.status(500).json({ 
       error: 'Error interno del servidor',
-      details: error.message,
-      code: 'USER_STATS_ERROR'
+      code: 'INTERNAL_ERROR'
     });
   }
 });
 
-// GET /api/stats/reports - Estadísticas avanzadas de reportes
-router.get('/reports', authMiddleware, async (req, res) => {
+// GET /api/stats/general - Estadísticas generales del sistema
+router.get('/general', authMiddleware, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const userRole = req.user.role;
-    const { 
-      start_date, 
-      end_date, 
-      tipo, 
-      estado, 
-      zona 
-    } = req.query;
-
-    let baseQuery = `
+    // Estadísticas generales
+    const generalStats = await pool.query(`
       SELECT 
-        COUNT(*) as total,
-        COUNT(CASE WHEN estado = 'Reportado' THEN 1 END) as pendientes,
-        COUNT(CASE WHEN estado = 'En proceso' THEN 1 END) as en_proceso,
-        COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as resueltos,
-        COUNT(CASE WHEN estado = 'Rechazado' THEN 1 END) as rechazados,
-        COUNT(CASE WHEN imagen_url IS NOT NULL THEN 1 END) as con_imagen,
-        AVG(CASE WHEN estado = 'Limpio' AND fecha_resolucion IS NOT NULL THEN 
-          EXTRACT(EPOCH FROM (fecha_resolucion - created_at))/86400 
-        END) as tiempo_promedio_resolucion_dias
-      FROM reportes r
-      JOIN usuarios u ON r.usuario_id = u.id
-      WHERE r.activo = true
-    `;
+        COUNT(DISTINCT u.id) as total_usuarios,
+        COUNT(DISTINCT CASE WHEN u.role = 'citizen' THEN u.id END) as total_ciudadanos,
+        COUNT(DISTINCT CASE WHEN u.role = 'authority' THEN u.id END) as total_autoridades,
+        COUNT(DISTINCT r.id) as total_reportes,
+        COUNT(CASE WHEN r.estado = 'Limpio' THEN 1 END) as reportes_resueltos,
+        COUNT(CASE WHEN r.estado IN ('Reportado', 'En proceso') THEN 1 END) as reportes_pendientes,
+        COUNT(CASE WHEN r.estado = 'Rechazado' THEN 1 END) as reportes_rechazados,
+        COUNT(CASE WHEN r.created_at >= NOW() - INTERVAL '7 days' THEN 1 END) as reportes_ultima_semana,
+        COUNT(CASE WHEN r.created_at >= NOW() - INTERVAL '30 days' THEN 1 END) as reportes_ultimo_mes,
+        ROUND(AVG(CASE WHEN r.estado = 'Limpio' AND r.fecha_resolucion IS NOT NULL 
+          THEN EXTRACT(EPOCH FROM (r.fecha_resolucion - r.created_at))/3600 END), 2) as tiempo_promedio_resolucion_horas
+      FROM usuarios u
+      LEFT JOIN reportes r ON u.id = r.usuario_id AND r.activo = true
+      WHERE u.activo = true
+    `);
 
-    const queryParams = [];
-    let paramCount = 0;
-
-    // Filtros
-    if (userRole === 'citizen') {
-      baseQuery += ` AND r.usuario_id = $${++paramCount}`;
-      queryParams.push(userId);
-    }
-
-    if (start_date) {
-      baseQuery += ` AND r.created_at >= $${++paramCount}`;
-      queryParams.push(start_date);
-    }
-
-    if (end_date) {
-      baseQuery += ` AND r.created_at <= $${++paramCount}`;
-      queryParams.push(end_date + ' 23:59:59');
-    }
-
-    if (tipo) {
-      baseQuery += ` AND r.tipo_estimado = $${++paramCount}`;
-      queryParams.push(tipo);
-    }
-
-    if (estado) {
-      baseQuery += ` AND r.estado = $${++paramCount}`;
-      queryParams.push(estado);
-    }
-
-    const statsResult = await pool.query(baseQuery, queryParams);
-    const stats = statsResult.rows[0];
-
-    // Query adicional para distribución por días de la semana
-    let weekdayQuery = `
+    // Top 5 usuarios más activos
+    const topUsers = await pool.query(`
       SELECT 
-        EXTRACT(DOW FROM created_at) as dia_semana,
-        COUNT(*) as cantidad
-      FROM reportes r
-      WHERE r.activo = true
-    `;
+        u.nombre,
+        u.puntos,
+        u.nivel,
+        COUNT(r.id) as total_reportes,
+        COUNT(CASE WHEN r.estado = 'Limpio' THEN 1 END) as reportes_resueltos
+      FROM usuarios u
+      LEFT JOIN reportes r ON u.id = r.usuario_id AND r.activo = true
+      WHERE u.activo = true AND u.role = 'citizen'
+      GROUP BY u.id, u.nombre, u.puntos, u.nivel
+      HAVING COUNT(r.id) > 0
+      ORDER BY u.puntos DESC, total_reportes DESC
+      LIMIT 5
+    `);
 
-    if (userRole === 'citizen') {
-      weekdayQuery += ` AND r.usuario_id = ${userId}`;
-    }
-
-    const weekdayParams = [];
-    let weekdayParamCount = 0;
-
-    if (start_date) {
-      weekdayQuery += ` AND r.created_at >= $${++weekdayParamCount}`;
-      weekdayParams.push(start_date);
-    }
-
-    if (end_date) {
-      weekdayQuery += ` AND r.created_at <= $${++weekdayParamCount}`;
-      weekdayParams.push(end_date + ' 23:59:59');
-    }
-
-    weekdayQuery += ` GROUP BY EXTRACT(DOW FROM created_at) ORDER BY dia_semana`;
-
-    const weekdayResult = await pool.query(weekdayQuery, weekdayParams);
-
-    // Mapear días de la semana
-    const diasSemana = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
-    const distribucionSemanal = weekdayResult.rows.map(row => ({
-      dia: diasSemana[row.dia_semana],
-      cantidad: parseInt(row.cantidad)
-    }));
-
-    const response = {
-      stats: stats,
-      distribucion_semanal: distribucionSemanal,
-      filtros_aplicados: {
-        start_date,
-        end_date,
-        tipo,
+    // Reportes por estado
+    const reportesPorEstado = await pool.query(`
+      SELECT 
         estado,
-        zona,
-        user_role: userRole
+        COUNT(*) as cantidad,
+        ROUND((COUNT(*) * 100.0 / (SELECT COUNT(*) FROM reportes WHERE activo = true)), 2) as porcentaje
+      FROM reportes 
+      WHERE activo = true
+      GROUP BY estado
+      ORDER BY cantidad DESC
+    `);
+
+    // Reportes por mes (últimos 12 meses)
+    const reportesPorMes = await pool.query(`
+      SELECT 
+        TO_CHAR(created_at, 'YYYY-MM') as mes,
+        COUNT(*) as cantidad,
+        COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) as resueltos
+      FROM reportes 
+      WHERE activo = true AND created_at >= NOW() - INTERVAL '12 months'
+      GROUP BY TO_CHAR(created_at, 'YYYY-MM')
+      ORDER BY mes DESC
+    `);
+
+    // Tipos de residuos más reportados
+    const tiposResiduos = await pool.query(`
+      SELECT 
+        COALESCE(tipo_estimado, 'Sin clasificar') as tipo,
+        COUNT(*) as cantidad
+      FROM reportes 
+      WHERE activo = true
+      GROUP BY tipo_estimado
+      ORDER BY cantidad DESC
+      LIMIT 10
+    `);
+
+    // Eficiencia del sistema (porcentaje de resolución)
+    const eficiencia = await pool.query(`
+      SELECT 
+        ROUND(
+          (COUNT(CASE WHEN estado = 'Limpio' THEN 1 END) * 100.0 / 
+           NULLIF(COUNT(CASE WHEN estado != 'Rechazado' THEN 1 END), 0)), 2
+        ) as porcentaje_eficiencia
+      FROM reportes 
+      WHERE activo = true
+    `);
+
+    console.log(`✅ Estadísticas generales consultadas por usuario ${req.user.id}`);
+
+    res.json({
+      success: true,
+      general: {
+        ...generalStats.rows[0],
+        porcentaje_eficiencia: eficiencia.rows[0]?.porcentaje_eficiencia || 0
       },
-      generated_at: new Date().toISOString()
-    };
-
-    console.log('✅ Estadísticas de reportes generadas exitosamente');
-
-    res.json(response);
+      topUsers: topUsers.rows,
+      reportesPorEstado: reportesPorEstado.rows,
+      reportesPorMes: reportesPorMes.rows,
+      tiposResiduos: tiposResiduos.rows
+    });
 
   } catch (error) {
-    console.error('❌ Error obteniendo estadísticas de reportes:', error);
+    console.error('❌ Error obteniendo estadísticas generales:', error);
     res.status(500).json({ 
       error: 'Error interno del servidor',
-      details: error.message,
-      code: 'REPORT_STATS_ERROR'
+      code: 'INTERNAL_ERROR'
+    });
+  }
+});
+
+// GET /api/stats/dashboard - Estadísticas para dashboard de autoridades
+router.get('/dashboard', authMiddleware, async (req, res) => {
+  try {
+    // Solo autoridades y admins pueden acceder
+    if (req.user.role !== 'authority' && req.user.role !== 'admin') {
+      return res.status(403).json({ 
+        error: 'Acceso denegado',
+        details: 'Solo autoridades pueden acceder a estas estadísticas',
+        code: 'FORBIDDEN'
+      });
+    }
+
+    // Métricas del día actual
+    const metricsHoy = await pool.query(`
+      SELECT 
+        COUNT(*) as reportes_hoy,
+        COUNT(CASE WHEN estado = 'Reportado' THEN 1 END) as nuevos_hoy,
+        COUNT(CASE WHEN estado = 'Limpio' AND fecha_resolucion::date = CURRENT_DATE THEN 1 END) as resueltos_hoy
+      FROM reportes 
+      WHERE created_at::date = CURRENT_DATE AND activo = true
+    `);
+
+    // Reportes urgentes (más de 7 días sin resolver)
+    const reportesUrgentes = await pool.query(`
+      SELECT 
+        r.id,
+        r.descripcion,
+        r.latitud,
+        r.longitud,
+        r.created_at,
+        u.nombre as usuario_nombre,
+        EXTRACT(DAYS FROM (NOW() - r.created_at)) as dias_pendiente
+      FROM reportes r
+      JOIN usuarios u ON r.usuario_id = u.id
+      WHERE r.estado IN ('Reportado', 'En proceso') 
+        AND r.created_at < NOW() - INTERVAL '7 days'
+        AND r.activo = true
+      ORDER BY r.created_at ASC
+      LIMIT 10
+    `);
+
+    // Carga de trabajo por autoridad
+    const cargaTrabajo = await pool.query(`
+      SELECT 
+        a.nombre as autoridad_nombre,
+        COUNT(r.id) as reportes_asignados,
+        COUNT(CASE WHEN r.estado = 'En proceso' THEN 1 END) as en_proceso,
+        COUNT(CASE WHEN r.estado = 'Limpio' THEN 1 END) as completados
+      FROM usuarios a
+      LEFT JOIN reportes r ON a.id = r.autoridad_asignada AND r.activo = true
+      WHERE a.role = 'authority' AND a.activo = true
+      GROUP BY a.id, a.nombre
+      ORDER BY reportes_asignados DESC
+    `);
+
+    console.log(`✅ Estadísticas de dashboard consultadas por autoridad ${req.user.id}`);
+
+    res.json({
+      success: true,
+      metricsHoy: metricsHoy.rows[0],
+      reportesUrgentes: reportesUrgentes.rows,
+      cargaTrabajo: cargaTrabajo.rows
+    });
+
+  } catch (error) {
+    console.error('❌ Error obteniendo estadísticas de dashboard:', error);
+    res.status(500).json({ 
+      error: 'Error interno del servidor',
+      code: 'INTERNAL_ERROR'
     });
   }
 });

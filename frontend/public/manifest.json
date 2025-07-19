@@ -1,96 +1,78 @@
 {
   "short_name": "EcoReports",
-  "name": "EcoReports - Monitoreo de Residuos Urbanos",
-  "description": "Plataforma inteligente para reportar y gestionar residuos urbanos",
+  "name": "EcoReports - Ciudades Más Limpias",
+  "description": "Plataforma inteligente para reportar y gestionar residuos urbanos. Contribuye a crear ciudades más limpias y sostenibles.",
   "icons": [
     {
-      "src": "icons/icon-72x72.png",
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/icons/icon-72x72.png",
+      "type": "image/png",
       "sizes": "72x72",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-96x96.png",
+      "src": "/icons/icon-96x96.png",
+      "type": "image/png",
       "sizes": "96x96",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-128x128.png",
+      "src": "/icons/icon-128x128.png",
+      "type": "image/png",
       "sizes": "128x128",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-144x144.png",
+      "src": "/icons/icon-144x144.png",
+      "type": "image/png",
       "sizes": "144x144",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-152x152.png",
+      "src": "/icons/icon-152x152.png",
+      "type": "image/png",
       "sizes": "152x152",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-192x192.png",
+      "src": "/icons/icon-192x192.png",
+      "type": "image/png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any maskable"
     },
     {
-      "src": "icons/icon-384x384.png",
+      "src": "/icons/icon-384x384.png",
+      "type": "image/png",
       "sizes": "384x384",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any"
     },
     {
-      "src": "icons/icon-512x512.png",
+      "src": "/icons/icon-512x512.png",
+      "type": "image/png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable any"
+      "purpose": "any maskable"
     }
   ],
-  "start_url": "/",
-  "display": "standalone",
-  "theme_color": "#10b981",
+  "id": "/?source=pwa",
+  "start_url": "/?source=pwa",
   "background_color": "#ffffff",
-  "orientation": "portrait-primary",
+  "display": "standalone",
   "scope": "/",
-  "categories": ["environment", "utilities", "government"],
-  "lang": "es-ES",
-  "screenshots": [
-    {
-      "src": "screenshots/mobile-screenshot-1.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow"
-    },
-    {
-      "src": "screenshots/mobile-screenshot-2.png",
-      "sizes": "390x844",
-      "type": "image/png",
-      "form_factor": "narrow"
-    },
-    {
-      "src": "screenshots/desktop-screenshot-1.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide"
-    }
-  ],
+  "theme_color": "#10b981",
   "shortcuts": [
     {
       "name": "Crear Reporte",
       "short_name": "Reportar",
       "description": "Crear un nuevo reporte de residuos",
-      "url": "/create",
+      "url": "/?action=create&source=shortcut",
       "icons": [
         {
-          "src": "icons/shortcut-create.png",
-          "sizes": "192x192",
-          "type": "image/png"
+          "src": "/icons/shortcut-create.png",
+          "sizes": "96x96"
         }
       ]
     },
@@ -98,27 +80,99 @@
       "name": "Ver Mapa",
       "short_name": "Mapa",
       "description": "Ver reportes en el mapa",
-      "url": "/map",
+      "url": "/?action=map&source=shortcut",
       "icons": [
         {
-          "src": "icons/shortcut-map.png",
-          "sizes": "192x192",
-          "type": "image/png"
+          "src": "/icons/shortcut-map.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Mis Reportes",
+      "short_name": "Reportes",
+      "description": "Ver mis reportes",
+      "url": "/?action=reports&source=shortcut",
+      "icons": [
+        {
+          "src": "/icons/shortcut-reports.png",
+          "sizes": "96x96"
         }
       ]
     }
   ],
+  "categories": [
+    "environmental",
+    "utilities",
+    "lifestyle",
+    "productivity"
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-dashboard.png",
+      "type": "image/png",
+      "sizes": "1280x720",
+      "form_factor": "wide",
+      "label": "Dashboard principal de EcoReports"
+    },
+    {
+      "src": "/screenshots/mobile-create.png",
+      "type": "image/png",
+      "sizes": "390x844",
+      "form_factor": "narrow",
+      "label": "Crear reporte en móvil"
+    },
+    {
+      "src": "/screenshots/mobile-map.png",
+      "type": "image/png",
+      "sizes": "390x844",
+      "form_factor": "narrow",
+      "label": "Mapa de reportes en móvil"
+    }
+  ],
   "related_applications": [],
   "prefer_related_applications": false,
-  "edge_side_panel": {
-    "preferred_width": 400
+  "lang": "es",
+  "dir": "ltr",
+  "orientation": "portrait-primary",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "edge_side_panel": {},
+  "launch_handler": {
+    "client_mode": "navigate-existing"
   },
   "file_handlers": [
     {
-      "action": "/create",
+      "action": "/",
       "accept": {
         "image/*": [".jpg", ".jpeg", ".png", ".webp"]
-      }
+      },
+      "launch_type": "single-client"
+    }
+  ],
+  "share_target": {
+    "action": "/?action=share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "description",
+      "url": "url",
+      "files": [
+        {
+          "name": "images",
+          "accept": ["image/*"]
+        }
+      ]
+    }
+  },
+  "protocol_handlers": [
+    {
+      "protocol": "web+ecoreports",
+      "url": "/?action=open&url=%s"
     }
   ]
 }

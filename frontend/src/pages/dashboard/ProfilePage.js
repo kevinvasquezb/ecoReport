@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { reportesAPI } from '../../utils/api';
+import api from '../../utils/api';
 import { 
   User, 
   Award, 
@@ -30,6 +31,7 @@ const ProfilePage = () => {
   });
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('stats');
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     loadUserStats();
@@ -37,19 +39,97 @@ const ProfilePage = () => {
 
   const loadUserStats = async () => {
     try {
-      const response = await reportesAPI.getAll();
-      const reportes = response.reportes || [];
+      setIsLoading(true);
+      setError(null);
       
-      setStats({
-        totalReportes: reportes.length,
-        reportesResueltos: reportes.filter(r => r.estado === 'Limpio').length,
-        reportesPendientes: reportes.filter(r => r.estado === 'Reportado' || r.estado === 'En proceso').length,
-        reportesRechazados: reportes.filter(r => r.estado === 'Rechazado').length
-      });
+      // Intentar usar el nuevo endpoint de stats primero
+      try {
+        const response = await api.get(`/api/stats/user/${user.id}`);
+        const apiStats = response.data.stats;
+        
+        setStats({
+          totalReportes: apiStats.total_reportes || 0,
+          reportesResueltos: apiStats.reportes_resueltos || 0,
+          reportesPendientes: apiStats.reportes_pendientes || 0,
+          reportesRechazados: apiStats.reportes_rechazados || 0
+        });
+      } catch (apiError) {
+        console.log('Usando método de estadísticas original');
+        const response = await reportesAPI.getAll();
+        const reportes = response.reportes || [];
+        
+        setStats({
+          totalReportes: reportes.length,
+          reportesResueltos: reportes.filter(r => r.estado === 'Limpio').length,
+          reportesPendientes: reportes.filter(r => r.estado === 'Reportado' || r.estado === 'En proceso').length,
+          reportesRechazados: reportes.filter(r => r.estado === 'Rechazado').length
+        });
+      }
     } catch (error) {
       console.error('Error cargando estadísticas:', error);
+      setError('No se pudieron cargar las estadísticas');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // COLORES POR ROLE - FUNCIÓN PRINCIPAL
+  const getThemeByRole = (role) => {
+    console.log('🎨 Aplicando tema para role:', role); // DEBUG
+    
+    switch (role) {
+      case 'citizen':
+        return {
+          // CIUDADANO: VERDE/EMERALD
+          headerGradient: 'from-emerald-500 to-emerald-600',
+          primaryColor: 'emerald',
+          bgLight: 'bg-emerald-50',
+          bgMedium: 'bg-emerald-100', 
+          bgDark: 'bg-emerald-500',
+          textColor: 'text-emerald-600',
+          textDark: 'text-emerald-800',
+          border: 'border-emerald-200',
+          buttonHover: 'hover:bg-emerald-600'
+        };
+      case 'authority':
+        return {
+          // AUTORIDAD: AZUL/BLUE  
+          headerGradient: 'from-blue-500 to-blue-600',
+          primaryColor: 'blue',
+          bgLight: 'bg-blue-50',
+          bgMedium: 'bg-blue-100',
+          bgDark: 'bg-blue-500', 
+          textColor: 'text-blue-600',
+          textDark: 'text-blue-800',
+          border: 'border-blue-200',
+          buttonHover: 'hover:bg-blue-600'
+        };
+      case 'admin':
+        return {
+          // ADMIN: MORADO/PURPLE
+          headerGradient: 'from-purple-500 to-purple-600',
+          primaryColor: 'purple',
+          bgLight: 'bg-purple-50',
+          bgMedium: 'bg-purple-100',
+          bgDark: 'bg-purple-500',
+          textColor: 'text-purple-600', 
+          textDark: 'text-purple-800',
+          border: 'border-purple-200',
+          buttonHover: 'hover:bg-purple-600'
+        };
+      default:
+        // DEFAULT: VERDE (CIUDADANO)
+        return {
+          headerGradient: 'from-emerald-500 to-emerald-600',
+          primaryColor: 'emerald',
+          bgLight: 'bg-emerald-50',
+          bgMedium: 'bg-emerald-100',
+          bgDark: 'bg-emerald-500',
+          textColor: 'text-emerald-600',
+          textDark: 'text-emerald-800', 
+          border: 'border-emerald-200',
+          buttonHover: 'hover:bg-emerald-600'
+        };
     }
   };
 
@@ -92,13 +172,15 @@ const ProfilePage = () => {
   const nextLevelPoints = getNextLevelPoints(currentLevel);
   const currentPoints = user?.puntos || 0;
   const progressToNext = currentLevel < 5 ? (currentPoints / nextLevelPoints) * 100 : 100;
+  
+  // APLICAR TEMA SEGÚN ROLE
+  const theme = getThemeByRole(user?.role);
 
   const tabs = [
     { id: 'stats', label: 'Estadísticas', icon: TrendingUp },
     { id: 'achievements', label: 'Logros', icon: Trophy },
     { id: 'account', label: 'Cuenta', icon: Settings }
   ];
-
   if (isLoading) {
     return (
       <div className="space-y-6 animate-pulse pb-20">
@@ -112,14 +194,30 @@ const ProfilePage = () => {
     );
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12 pb-20">
+        <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Error al cargar perfil</h3>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={loadUserStats}
+          className={`${theme.bgDark} text-white px-4 py-2 rounded-lg ${theme.buttonHover} transition-colors`}
+        >
+          Reintentar
+        </button>
+      </div>
+    );
+  }
+
   const renderStatsTab = () => (
     <div className="space-y-6">
       {/* Estadísticas principales */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
-              <Award className="w-6 h-6 text-emerald-600" />
+            <div className={`w-12 h-12 ${theme.bgMedium} rounded-lg flex items-center justify-center`}>
+              <Award className={`w-6 h-6 ${theme.textColor}`} />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{currentPoints}</p>
@@ -130,8 +228,8 @@ const ProfilePage = () => {
         
         <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
           <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-blue-600" />
+            <div className={`w-12 h-12 ${theme.bgMedium} rounded-lg flex items-center justify-center`}>
+              <TrendingUp className={`w-6 h-6 ${theme.textColor}`} />
             </div>
             <div>
               <p className="text-2xl font-bold text-gray-900">{stats.totalReportes}</p>
@@ -144,7 +242,7 @@ const ProfilePage = () => {
       {/* Estadísticas detalladas */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-          <Target className="w-5 h-5 text-emerald-600" />
+          <Target className={`w-5 h-5 ${theme.textColor}`} />
           <span>Estadísticas Detalladas</span>
         </h3>
         
@@ -220,7 +318,6 @@ const ProfilePage = () => {
       </div>
     </div>
   );
-
   const renderAchievementsTab = () => (
     <div className="space-y-6">
       {/* Sistema de logros */}
@@ -232,23 +329,23 @@ const ProfilePage = () => {
         
         <div className="grid grid-cols-1 gap-3">
           {/* Primer reporte */}
-          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.totalReportes > 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50'}`}>
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stats.totalReportes > 0 ? 'bg-emerald-100' : 'bg-gray-200'}`}>
-              <MapPin className={`w-5 h-5 ${stats.totalReportes > 0 ? 'text-emerald-600' : 'text-gray-400'}`} />
+          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.totalReportes > 0 ? `${theme.bgLight} ${theme.border}` : 'bg-gray-50'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stats.totalReportes > 0 ? theme.bgMedium : 'bg-gray-200'}`}>
+              <MapPin className={`w-5 h-5 ${stats.totalReportes > 0 ? theme.textColor : 'text-gray-400'}`} />
             </div>
             <div className="flex-1">
-              <p className={`font-medium ${stats.totalReportes > 0 ? 'text-emerald-800' : 'text-gray-600'}`}>
+              <p className={`font-medium ${stats.totalReportes > 0 ? theme.textDark : 'text-gray-600'}`}>
                 Primer Reporte
               </p>
               <p className="text-sm text-gray-500">Crear tu primer reporte ambiental</p>
             </div>
             {stats.totalReportes > 0 && (
-              <CheckCircle className="w-5 h-5 text-emerald-600" />
+              <CheckCircle className={`w-5 h-5 ${theme.textColor}`} />
             )}
           </div>
 
           {/* EcoReporter Activo */}
-          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.totalReportes >= 5 ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50'}`}>
+          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.totalReportes >= 5 ? 'bg-blue-50 border-blue-200' : 'bg-gray-50'}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stats.totalReportes >= 5 ? 'bg-blue-100' : 'bg-gray-200'}`}>
               <TrendingUp className={`w-5 h-5 ${stats.totalReportes >= 5 ? 'text-blue-600' : 'text-gray-400'}`} />
             </div>
@@ -264,7 +361,7 @@ const ProfilePage = () => {
           </div>
 
           {/* Problema Resuelto */}
-          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.reportesResueltos > 0 ? 'bg-purple-50 border border-purple-200' : 'bg-gray-50'}`}>
+          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.reportesResueltos > 0 ? 'bg-purple-50 border-purple-200' : 'bg-gray-50'}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stats.reportesResueltos > 0 ? 'bg-purple-100' : 'bg-gray-200'}`}>
               <Trophy className={`w-5 h-5 ${stats.reportesResueltos > 0 ? 'text-purple-600' : 'text-gray-400'}`} />
             </div>
@@ -280,7 +377,7 @@ const ProfilePage = () => {
           </div>
 
           {/* EcoReporter Comprometido */}
-          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.totalReportes >= 10 ? 'bg-indigo-50 border border-indigo-200' : 'bg-gray-50'}`}>
+          <div className={`flex items-center space-x-3 p-3 rounded-lg ${stats.totalReportes >= 10 ? 'bg-indigo-50 border-indigo-200' : 'bg-gray-50'}`}>
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${stats.totalReportes >= 10 ? 'bg-indigo-100' : 'bg-gray-200'}`}>
               <Award className={`w-5 h-5 ${stats.totalReportes >= 10 ? 'text-indigo-600' : 'text-gray-400'}`} />
             </div>
@@ -297,8 +394,8 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {/* Próximos logros */}
-      <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+      {/* Próximos logros con colores del tema */}
+      <div className={`${theme.bgLight} rounded-xl p-6 border ${theme.border}`}>
         <h4 className="font-semibold text-gray-900 mb-3">🎯 Próximos Logros</h4>
         <div className="space-y-2 text-sm text-gray-600">
           {stats.totalReportes < 5 && (
@@ -327,7 +424,7 @@ const ProfilePage = () => {
             <User className="w-5 h-5 text-gray-600" />
             <span>Información Personal</span>
           </h3>
-          <button className="flex items-center space-x-1 text-emerald-600 hover:text-emerald-700">
+          <button className={`flex items-center space-x-1 ${theme.textColor} hover:opacity-80 transition-opacity`}>
             <Edit className="w-4 h-4" />
             <span className="text-sm">Editar</span>
           </button>
@@ -364,7 +461,7 @@ const ProfilePage = () => {
             <Shield className="w-5 h-5 text-gray-600" />
             <div>
               <p className="text-sm text-gray-600">Tipo de cuenta</p>
-              <p className="font-medium text-gray-900 capitalize">{user?.role}</p>
+              <p className={`font-medium capitalize ${theme.textColor}`}>{user?.role}</p>
             </div>
           </div>
           
@@ -393,14 +490,14 @@ const ProfilePage = () => {
         <div className="space-y-3">
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <span className="text-gray-700">Notificaciones por email</span>
-            <div className="w-10 h-6 bg-emerald-500 rounded-full relative">
+            <div className={`w-10 h-6 ${theme.bgDark} rounded-full relative`}>
               <div className="w-4 h-4 bg-white rounded-full absolute top-1 right-1"></div>
             </div>
           </div>
           
           <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
             <span className="text-gray-700">Ubicación automática</span>
-            <div className="w-10 h-6 bg-emerald-500 rounded-full relative">
+            <div className={`w-10 h-6 ${theme.bgDark} rounded-full relative`}>
               <div className="w-4 h-4 bg-white rounded-full absolute top-1 right-1"></div>
             </div>
           </div>
@@ -415,11 +512,15 @@ const ProfilePage = () => {
       </div>
     </div>
   );
-
   return (
     <div className="space-y-6 pb-20">
-      {/* Header del perfil */}
-      <div className="bg-gradient-to-r from-emerald-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg">
+      {/* DEBUG: Mostrar información del tema - REMOVER EN PRODUCCIÓN */}
+      <div className="text-xs bg-gray-100 p-2 rounded">
+        <strong>DEBUG:</strong> Role: {user?.role} | Theme: {theme.primaryColor} | Header: {theme.headerGradient}
+      </div>
+
+      {/* Header del perfil con colores CORRECTOS por role */}
+      <div className={`bg-gradient-to-r ${theme.headerGradient} rounded-2xl p-6 text-white shadow-lg`}>
         <div className="flex items-start space-x-4">
           <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center">
             <span className="text-3xl font-bold text-white">
@@ -428,7 +529,7 @@ const ProfilePage = () => {
           </div>
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{user?.nombre}</h1>
-            <p className="text-emerald-100 capitalize mb-2">{user?.role}</p>
+            <p className="text-white text-opacity-80 capitalize mb-2">{user?.role}</p>
             <div className="flex items-center space-x-2 mb-3">
               <Trophy className="w-5 h-5 text-yellow-300" />
               <span className="text-lg font-semibold">{getLevelTitle(currentLevel)}</span>
@@ -437,7 +538,7 @@ const ProfilePage = () => {
             {/* Barra de progreso de nivel */}
             {currentLevel < 5 && (
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-sm text-white text-opacity-80">
                   <span>Nivel {currentLevel}</span>
                   <span>Nivel {currentLevel + 1}</span>
                 </div>
@@ -447,7 +548,7 @@ const ProfilePage = () => {
                     style={{ width: `${progressToNext}%` }}
                   ></div>
                 </div>
-                <p className="text-xs text-emerald-100">
+                <p className="text-xs text-white text-opacity-70">
                   {nextLevelPoints - currentPoints} puntos para el siguiente nivel
                 </p>
               </div>
@@ -456,7 +557,7 @@ const ProfilePage = () => {
         </div>
       </div>
 
-      {/* Navegación por tabs */}
+      {/* Navegación por tabs con colores CORRECTOS por role */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="flex">
           {tabs.map((tab) => {
@@ -467,7 +568,7 @@ const ProfilePage = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex-1 flex items-center justify-center space-x-2 px-4 py-3 text-sm font-medium transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-emerald-50 text-emerald-700 border-b-2 border-emerald-500'
+                    ? `${theme.bgLight} ${theme.textColor} border-b-2 ${theme.border.replace('border-', 'border-b-')}`
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
                 }`}
               >
@@ -484,18 +585,18 @@ const ProfilePage = () => {
       {activeTab === 'achievements' && renderAchievementsTab()}
       {activeTab === 'account' && renderAccountTab()}
 
-      {/* Consejos para ganar puntos */}
-      <div className="bg-gradient-to-r from-emerald-50 to-blue-50 rounded-xl p-6 border border-emerald-200">
+      {/* Consejos para ganar puntos con colores CORRECTOS por role */}
+      <div className={`bg-gradient-to-r ${theme.bgLight} to-blue-50 rounded-xl p-6 border ${theme.border}`}>
         <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
-          <Target className="w-5 h-5 text-emerald-600" />
+          <Target className={`w-5 h-5 ${theme.textColor}`} />
           <span>¿Cómo ganar más puntos?</span>
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-3">
             <div className="flex items-start space-x-3">
-              <div className="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                <span className="text-xs font-bold text-emerald-600">+10</span>
+              <div className={`w-6 h-6 ${theme.bgMedium} rounded-full flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                <span className={`text-xs font-bold ${theme.textColor}`}>+10</span>
               </div>
               <div>
                 <p className="font-medium text-gray-900">Crear un reporte</p>
